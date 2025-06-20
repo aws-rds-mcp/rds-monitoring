@@ -72,12 +72,7 @@ mcp = FastMCP(
 )
 
 
-@mcp.resource(
-    uri='aws-rds://db-instance',
-    name='ListInstances',
-    mime_type='application/json',
-    description='List all available Amazon RDS instances.',
-)
+@mcp.resource(uri='aws-rds://db-instance', name='ListInstances', mime_type='application/json')
 async def list_instances_resource() -> List[dict]:
     """List all available Amazon RDS instances in your account.
 
@@ -119,12 +114,7 @@ async def list_instances_resource() -> List[dict]:
     return await list_instances(rds_client=rds_client)
 
 
-@mcp.resource(
-    uri='aws-rds://db-cluster',
-    name='ListClusters',
-    mime_type='application/json',
-    description='List all available Amazon RDS clusters.',
-)
+@mcp.resource(uri='aws-rds://db-cluster', name='ListClusters', mime_type='application/json')
 async def list_clusters_resource() -> List[dict]:
     """List all available Amazon RDS clusters in your account.
 

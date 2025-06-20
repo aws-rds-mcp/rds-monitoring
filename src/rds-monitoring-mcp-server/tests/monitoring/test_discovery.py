@@ -26,7 +26,6 @@ from awslabs.rds_monitoring_mcp_server.monitoring.discovery import (
     list_instances,
 )
 from tests.test_constants import MOCK_DB_CLUSTERS_RESPONSE, MOCK_DB_INSTANCES_RESPONSE
-from unittest.mock import MagicMock
 
 
 class TestGetInstanceOverview:
@@ -71,13 +70,8 @@ class TestListInstances:
     """Tests for the list_instances function."""
 
     @pytest.mark.asyncio
-    async def test_list_instances(self):
+    async def test_list_instances(self, mock_rds_client):
         """Test retrieving a list of RDS instances."""
-        mock_rds_client = MagicMock()
-        paginator = MagicMock()
-        paginator.paginate.return_value = [MOCK_DB_INSTANCES_RESPONSE]
-        mock_rds_client.get_paginator.return_value = paginator
-
         result = await list_instances(mock_rds_client)
 
         assert len(result) == 3
@@ -92,21 +86,18 @@ class TestListInstances:
         assert result[2].engine == 'mysql'
 
         mock_rds_client.get_paginator.assert_called_once_with('describe_db_instances')
-        paginator.paginate.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_list_instances_empty(self):
+    async def test_list_instances_empty(self, mock_rds_client):
         """Test retrieving a list of RDS instances when none exist."""
-        mock_rds_client = MagicMock()
-        paginator = MagicMock()
+        paginator = mock_rds_client.get_paginator('describe_db_instances')
         paginator.paginate.return_value = [{'DBInstances': []}]
-        mock_rds_client.get_paginator.return_value = paginator
 
         result = await list_instances(mock_rds_client)
 
         assert len(result) == 0
 
-        mock_rds_client.get_paginator.assert_called_once_with('describe_db_instances')
+        mock_rds_client.get_paginator.assert_called_with('describe_db_instances')
         paginator.paginate.assert_called_once()
 
 
@@ -114,13 +105,8 @@ class TestListClusters:
     """Tests for the list_clusters function."""
 
     @pytest.mark.asyncio
-    async def test_list_clusters(self):
+    async def test_list_clusters(self, mock_rds_client):
         """Test retrieving a list of RDS clusters."""
-        mock_rds_client = MagicMock()
-        paginator = MagicMock()
-        paginator.paginate.return_value = [MOCK_DB_CLUSTERS_RESPONSE]
-        mock_rds_client.get_paginator.return_value = paginator
-
         result = await list_clusters(mock_rds_client)
 
         assert len(result) == 1
@@ -132,19 +118,16 @@ class TestListClusters:
         assert result[0].multi_az is False
 
         mock_rds_client.get_paginator.assert_called_once_with('describe_db_clusters')
-        paginator.paginate.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_list_clusters_empty(self):
+    async def test_list_clusters_empty(self, mock_rds_client):
         """Test retrieving a list of RDS clusters when none exist."""
-        mock_rds_client = MagicMock()
-        paginator = MagicMock()
+        paginator = mock_rds_client.get_paginator('describe_db_clusters')
         paginator.paginate.return_value = [{'DBClusters': []}]
-        mock_rds_client.get_paginator.return_value = paginator
 
         result = await list_clusters(mock_rds_client)
 
         assert len(result) == 0
 
-        mock_rds_client.get_paginator.assert_called_once_with('describe_db_clusters')
+        mock_rds_client.get_paginator.assert_called_with('describe_db_clusters')
         paginator.paginate.assert_called_once()

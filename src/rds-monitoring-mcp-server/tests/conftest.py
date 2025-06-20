@@ -25,8 +25,24 @@ def mock_rds_client():
     client = MagicMock()
     client.meta.region_name = 'us-east-1'
 
+    # Set up direct API responses
     client.describe_db_instances.return_value = MOCK_DB_INSTANCES_RESPONSE
     client.describe_db_clusters.return_value = MOCK_DB_CLUSTERS_RESPONSE
+
+    # Set up paginator for describe_db_instances
+    paginator_instances = MagicMock()
+    paginator_instances.paginate.return_value = [MOCK_DB_INSTANCES_RESPONSE]
+
+    # Set up paginator for describe_db_clusters
+    paginator_clusters = MagicMock()
+    paginator_clusters.paginate.return_value = [MOCK_DB_CLUSTERS_RESPONSE]
+
+    mock_paginators = {
+        'describe_db_instances': paginator_instances,
+        'describe_db_clusters': paginator_clusters,
+    }
+
+    client.get_paginator = MagicMock(side_effect=lambda operation: mock_paginators[operation])
 
     return client
 
