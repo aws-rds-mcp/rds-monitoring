@@ -12,90 +12,163 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs rds-monitoring MCP Server implementation."""
+"""awslabs RDS Control Plane Operations MCP Server."""
 
+import os
+import sys
+from awslabs.rds_monitoring_mcp_server.clients import (
+    get_cloudwatch_client,
+    get_pi_client,
+    get_rds_client,
+)
+from awslabs.rds_monitoring_mcp_server.monitoring.discovery import (
+    list_clusters,
+    list_instances,
+)
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
-from typing import Literal
+from typing import List
 
+
+# Remove all default handlers then add our own
+logger.remove()
+logger.add(sys.stderr, level='INFO')
+
+global pi_client
+global rds_client
+global cloudwatch_client
+
+try:
+    pi_client = get_pi_client(
+        region_name=os.getenv('AWS_REGION'),
+        profile_name=os.getenv('AWS_PROFILE'),
+    )
+    rds_client = get_rds_client(
+        region_name=os.getenv('AWS_REGION'),
+        profile_name=os.getenv('AWS_PROFILE'),
+    )
+    cloudwatch_client = get_cloudwatch_client(
+        region_name=os.getenv('AWS_REGION'),
+        profile_name=os.getenv('AWS_PROFILE'),
+    )
+except Exception as e:
+    logger.error(f'Error getting RDS, PI or CloudWatch clients: {e}')
+    raise e
 
 mcp = FastMCP(
-    'awslabs.rds-monitoring-mcp-server',
-    instructions='Instructions for using this rds-monitoring MCP server. This can be used by clients to improve the LLM'
-    's understanding of available tools, resources, etc. It can be thought of like a '
-    'hint'
-    ' to the model. For example, this information MAY be added to the system prompt. Important to be clear, direct, and detailed.',
-    dependencies=[
-        'pydantic',
-        'loguru',
-    ],
+    'RDS Monitoring',
+    instructions="""
+    The AWS Labs RDS Control Plane Operations MCP Server provides access to Amazon RDS Control Plane Operations for managing and monitoring database instances.
+
+    ## Usage Workflow:
+    1. ALWAYS start by accessing either the `resource://instances` or `resource://clusters`resource to discover available instances and clusters
+    2. Note down the db_instance_identifier and db_cluster_identifier for use with monitoring and management tools
+
+    ## Important Notes:
+    - Instance names are case-sensitive
+    - Always verify that the instance name exists in the resource response before querying
+    """,
+    dependencies=['pydantic', 'loguru', 'boto3'],
 )
 
 
-@mcp.tool(name='ExampleTool')
-async def example_tool(
-    query: str,
-) -> str:
-    """Example tool implementation.
+@mcp.resource(
+    uri='aws-rds://db-instance',
+    name='ListInstances',
+    mime_type='application/json',
+    description='List all available Amazon RDS instances.',
+)
+async def list_instances_resource() -> List[dict]:
+    """List all available Amazon RDS instances in your account.
 
-    Replace this with your own tool implementation.
+    <use_case>
+    Use this resource to discover all available RDS database instances in your AWS account. The list includes both standalone instances and instances that
+    are part of Aurora clusters.
+    </use_case>
+
+    <important_notes>
+    1. The response provides the essential information (identifiers, engine, etc.) about each instance
+    2. Instance identifiers returned can be used with other tools and resources in this MCP server
+    3. Keep note of the DBInstanceIdentifier and DbiResourceId for use with other tools
+    4. Instances are filtered to the AWS region specified in your environment configuration
+    5. Use the `aws-rds://db-instance/{db_instance_identifier}` resource to get more information (networking, cluster membership details etc.) about a specific instance
+    </important_notes>
+
+    ## Response structure
+    Returns an array of DB instance objects, each containing:
+    - `DBInstanceIdentifier`: Unique identifier for the instance (string)
+    - `DbiResourceId`: The unqiue resource identifier for this instance (string)
+    - `DBInstanceArn`: ARN of the instance (string)
+    - `DBInstanceStatus`: Current status of the instance (string)
+    - `DBInstanceClass`: The compute and memory capacity class (string)
+    - `Engine`: Database engine type (string)
+    - `AvailabilityZone`: The AZ where the instance resides (string)
+    - `MultiAZ`: Whether the instance is Multi-AZ (boolean)
+    - `TagList`: List of tags attached to the instance
+
+    <examples>
+    Example usage scenarios:
+    1. Discovery and inventory:
+       - List all available RDS instances to create an inventory
+
+    2. Preparation for other operations:
+       - Find specific instance identifiers to use with performance monitoring tools
+       - Identify instances to check for events or read logs from
+    </examples>
     """
-    project_name = 'awslabs rds-monitoring MCP Server'
-    return (
-        f"Hello from {project_name}! Your query was {query}. Replace this with your tool's logic"
-    )
+    return await list_instances(rds_client=rds_client)
 
 
-@mcp.tool(name='MathTool')
-async def math_tool(
-    operation: Literal['add', 'subtract', 'multiply', 'divide'],
-    a: int | float,
-    b: int | float,
-) -> int | float:
-    """Math tool implementation.
+@mcp.resource(
+    uri='aws-rds://db-cluster',
+    name='ListClusters',
+    mime_type='application/json',
+    description='List all available Amazon RDS clusters.',
+)
+async def list_clusters_resource() -> List[dict]:
+    """List all available Amazon RDS clusters in your account.
 
-    This tool supports the following operations:
-    - add
-    - subtract
-    - multiply
-    - divide
+    <use_case>
+    Use this resource to discover all available RDS database clusters in your AWS account,
+    including Aurora clusters (MySQL/PostgreSQL) and Multi-AZ DB clusters.
+    </use_case>
 
-    Parameters:
-        operation (Literal["add", "subtract", "multiply", "divide"]): The operation to perform.
-        a (int): The first number.
-        b (int): The second number.
+    <important_notes>
+    1. The response provides the essential information (identifiers, engine, etc.) about each cluster
+    2. Cluster identifiers returned can be used with other tools and resources in this MCP server
+    3. Keep note of the db_cluster_identifier and db_cluster_resource_id for use with other tools
+    4. Clusters are filtered to the AWS region specified in your environment configuration
+    5. Use the `aws-rds://db-cluster/{db_cluster_identifier}` to get more information about a specific cluster
+    </important_notes>
 
-    Returns:
-        The result of the operation.
+    ## Response structure
+    Returns an array of DB cluster objects, each containing:
+    - `db_cluster_identifier`: Unique identifier for the cluster (string)
+    - `db_cluster_resource_id`: The unique resource identifier for this cluster (string)
+    - `db_cluster_arn`: ARN of the cluster (string)
+    - `status`: Current status of the cluster (string)
+    - `engine`: Database engine type (string)
+    - `engine_version`: The version of the database engine (string)
+    - `availability_zones`: The AZs where the cluster instances can be created (array of strings)
+    - `multi_az`: Whether the cluster has instances in multiple Availability Zones (boolean)
+    - `tag_list`: List of tags attached to the cluster
+
+    <examples>
+    Example usage scenarios:
+    1. Discovery and inventory:
+       - List all available RDS clusters to create an inventory
+       - Identify cluster engine types and versions in your environment
+
+    2. Preparation for other operations:
+       - Find specific cluster identifiers to use with management tools
+       - Identify clusters that may need maintenance or upgrades
+    </examples>
     """
-    match operation:
-        case 'add':
-            return a + b
-        case 'subtract':
-            return a - b
-        case 'multiply':
-            return a * b
-        case 'divide':
-            try:
-                return a / b
-            except ZeroDivisionError:
-                raise ValueError(f'The denominator {b} cannot be zero.')
-        case _:
-            raise ValueError(
-                f'Invalid operation: {operation} (must be one of: add, subtract, multiply, divide)'
-            )
+    return await list_clusters(rds_client=rds_client)
 
 
 def main():
     """Run the MCP server with CLI argument support."""
-    logger.trace('A trace message.')
-    logger.debug('A debug message.')
-    logger.info('An info message.')
-    logger.success('A success message.')
-    logger.warning('A warning message.')
-    logger.error('An error message.')
-    logger.critical('A critical message.')
-
     mcp.run()
 
 
