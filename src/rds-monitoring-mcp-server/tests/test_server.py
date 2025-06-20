@@ -12,84 +12,121 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for the rds-monitoring MCP Server."""
+"""Tests for the server module of the rds-monitoring-mcp-server."""
 
 import pytest
-from awslabs.rds_monitoring_mcp_server.server import example_tool, math_tool
+from awslabs.rds_monitoring_mcp_server.models import (
+    ClusterOverview,
+    InstanceOverview,
+)
+from awslabs.rds_monitoring_mcp_server.server import (
+    list_clusters_resource,
+    list_instances_resource,
+    mcp,
+)
+from unittest.mock import patch
 
 
-@pytest.mark.asyncio
-async def test_example_tool():
-    """Test example tool."""
-    # Arrange
-    test_query = 'test query'
-    expected_project_name = 'awslabs rds-monitoring MCP Server'
-    expected_response = f"Hello from {expected_project_name}! Your query was {test_query}. Replace this with your tool's logic"
+class TestMCPServer:
+    """Tests for the MCP server."""
 
-    # Act
-    result = await example_tool(test_query)
-
-    # Assert
-    assert result == expected_response
+    def test_mcp_initialization(self):
+        """Test that the MCP server is initialized correctly."""
+        assert mcp.name == 'RDS Monitoring'
+        assert mcp.instructions is not None
+        assert 'AWS Labs RDS Control Plane Operations MCP Server' in mcp.instructions
+        assert 'boto3' in mcp.dependencies
+        assert 'pydantic' in mcp.dependencies
+        assert 'loguru' in mcp.dependencies
 
 
-@pytest.mark.asyncio
-async def test_example_tool_failure():
-    """Test example tool failure."""
-    # Arrange
-    test_query = 'test query'
-    expected_project_name = 'awslabs rds-monitoring MCP Server'
-    expected_response = f"Hello from {expected_project_name}! Your query was {test_query}. Replace this your tool's new logic"
+class TestListInstancesResource:
+    """Tests for the list_instances_resource function."""
 
-    # Act
-    result = await example_tool(test_query)
+    @pytest.mark.asyncio
+    @patch('awslabs.rds_monitoring_mcp_server.server.list_instances')
+    async def test_list_instances_resource(self, mock_list_instances):
+        """Test the list_instances_resource function."""
+        mock_instances = [
+            InstanceOverview(
+                db_instance_identifier='db-instance-1',
+                dbi_resource_id='db-resource-1',
+                db_instance_arn='arn:aws:rds:us-west-2:123456789012:db:db-instance-1',
+                db_instance_status='available',
+                db_instance_class='db.t3.medium',
+                engine='mysql',
+                availability_zone='us-west-2a',
+                multi_az=False,
+                tag_list=[{'Key': 'Environment', 'Value': 'Test'}],
+            ),
+            InstanceOverview(
+                db_instance_identifier='db-instance-2',
+                dbi_resource_id='db-resource-2',
+                db_instance_arn='arn:aws:rds:us-west-2:123456789012:db:db-instance-2',
+                db_instance_status='available',
+                db_instance_class='db.t3.large',
+                engine='postgres',
+                availability_zone='us-west-2b',
+                multi_az=True,
+                tag_list=[{'Key': 'Environment', 'Value': 'Production'}],
+            ),
+        ]
+        mock_list_instances.return_value = mock_instances
 
-    # Assert
-    assert result != expected_response
+        result = await list_instances_resource()
+
+        assert len(result) == 2
+        assert result[0].db_instance_identifier == 'db-instance-1'
+        assert result[0].dbi_resource_id == 'db-resource-1'
+        assert result[0].engine == 'mysql'
+        assert result[1].db_instance_identifier == 'db-instance-2'
+        assert result[1].dbi_resource_id == 'db-resource-2'
+        assert result[1].engine == 'postgres'
+
+        mock_list_instances.assert_called_once()
 
 
-@pytest.mark.asyncio
-class TestMathTool:
-    """Test class for math tool."""
+class TestListClustersResource:
+    """Tests for the list_clusters_resource function."""
 
-    async def test_addition(self):
-        """Test addition."""
-        # Test integer addition
-        assert await math_tool('add', 2, 3) == 5
-        # Test float addition
-        assert await math_tool('add', 2.5, 3.5) == 6.0
+    @pytest.mark.asyncio
+    @patch('awslabs.rds_monitoring_mcp_server.server.list_clusters')
+    async def test_list_clusters_resource(self, mock_list_clusters):
+        """Test the list_clusters_resource function."""
+        mock_clusters = [
+            ClusterOverview(
+                db_cluster_identifier='db-cluster-1',
+                db_cluster_resource_id='cluster-resource-1',
+                db_cluster_arn='arn:aws:rds:us-west-2:123456789012:cluster:db-cluster-1',
+                status='available',
+                engine='aurora-mysql',
+                engine_version='5.7.mysql_aurora.2.11.1',
+                availability_zones=['us-west-2a', 'us-west-2b', 'us-west-2c'],
+                multi_az=True,
+                tag_list=[{'Key': 'Environment', 'Value': 'Test'}],
+            ),
+            ClusterOverview(
+                db_cluster_identifier='db-cluster-2',
+                db_cluster_resource_id='cluster-resource-2',
+                db_cluster_arn='arn:aws:rds:us-west-2:123456789012:cluster:db-cluster-2',
+                status='available',
+                engine='aurora-postgresql',
+                engine_version='13.7.postgresql',
+                availability_zones=['us-west-2a', 'us-west-2b'],
+                multi_az=True,
+                tag_list=[{'Key': 'Environment', 'Value': 'Production'}],
+            ),
+        ]
+        mock_list_clusters.return_value = mock_clusters
 
-    async def test_subtraction(self):
-        """Test subtraction."""
-        # Test integer subtraction
-        assert await math_tool('subtract', 5, 3) == 2
-        # Test float subtraction
-        assert await math_tool('subtract', 5.5, 2.5) == 3.0
+        result = await list_clusters_resource()
 
-    async def test_multiplication(self):
-        """Test multiplication."""
-        # Test integer multiplication
-        assert await math_tool('multiply', 4, 3) == 12
-        # Test float multiplication
-        assert await math_tool('multiply', 2.5, 2) == 5.0
+        assert len(result) == 2
+        assert result[0].db_cluster_identifier == 'db-cluster-1'
+        assert result[0].db_cluster_resource_id == 'cluster-resource-1'
+        assert result[0].engine == 'aurora-mysql'
+        assert result[1].db_cluster_identifier == 'db-cluster-2'
+        assert result[1].db_cluster_resource_id == 'cluster-resource-2'
+        assert result[1].engine == 'aurora-postgresql'
 
-    async def test_division(self):
-        """Test division."""
-        # Test integer division
-        assert await math_tool('divide', 6, 2) == 3.0
-        # Test float division
-        assert await math_tool('divide', 5.0, 2.0) == 2.5
-
-    async def test_division_by_zero(self):
-        """Test division by zero."""
-        # Test division by zero raises ValueError
-        with pytest.raises(ValueError) as exc_info:
-            await math_tool('divide', 5, 0)
-        assert str(exc_info.value) == 'The denominator 0 cannot be zero.'
-
-    async def test_invalid_operation(self):
-        """Test invalid operation."""
-        # Test invalid operation raises ValueError
-        with pytest.raises(ValueError) as exc_info:
-            await math_tool('power', 2, 3)
-        assert 'Invalid operation: power' in str(exc_info.value)
+        mock_list_clusters.assert_called_once()
