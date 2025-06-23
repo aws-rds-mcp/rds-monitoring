@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from awslabs.rds_monitoring_mcp_server.constants import PAGINATION_CONFIG
 from awslabs.rds_monitoring_mcp_server.models import (
     ClusterOverview,
     InstanceOverview,
@@ -82,7 +83,7 @@ async def list_instances(rds_client: RDSClient) -> List[InstanceOverview]:
     """
     instances: List[InstanceOverview] = []
     paginator = rds_client.get_paginator('describe_db_instances')
-    page_iterator = paginator.paginate()
+    page_iterator = paginator.paginate(PaginationConfig=PAGINATION_CONFIG)
 
     for page in page_iterator:
         for instance in page.get('DBInstances', []):
@@ -112,7 +113,7 @@ async def list_clusters(
     """
     clusters: List[ClusterOverview] = []
     paginator = rds_client.get_paginator('describe_db_clusters')
-    page_iterator = paginator.paginate()
+    page_iterator = paginator.paginate(PaginationConfig=PAGINATION_CONFIG)
 
     for page in page_iterator:
         for cluster in page.get('DBClusters', []):

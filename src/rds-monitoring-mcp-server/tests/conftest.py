@@ -15,7 +15,10 @@
 """Test fixtures for the rds-monitoring-mcp-server tests."""
 
 import pytest
-from .test_constants import MOCK_DB_CLUSTERS_RESPONSE, MOCK_DB_INSTANCES_RESPONSE
+from .test_constants import (
+    MOCK_DB_CLUSTERS_RESPONSE,
+    MOCK_DB_INSTANCES_RESPONSE,
+)
 from unittest.mock import MagicMock, patch
 
 
