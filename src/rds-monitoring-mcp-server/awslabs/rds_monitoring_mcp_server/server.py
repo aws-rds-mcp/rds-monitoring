@@ -21,7 +21,9 @@ from awslabs.rds_monitoring_mcp_server.clients import (
     get_pi_client,
     get_rds_client,
 )
-from awslabs.rds_monitoring_mcp_server.monitoring.discovery import (
+from awslabs.rds_monitoring_mcp_server.discovery import (
+    get_cluster_details,
+    get_instance_details,
     list_clusters,
     list_instances,
 )
@@ -114,6 +116,54 @@ async def list_instances_resource() -> List[dict]:
     return await list_instances(rds_client=rds_client)
 
 
+@mcp.resource(
+    uri='aws-rds://db-instance/{db_instance_identifier}',
+    name='GetInstanceDetails',
+    mime_type='application/json',
+)
+async def instance_details_resource(db_instance_identifier: str) -> dict:
+    """Get detailed information about a specific RDS instance.
+
+    <use_case>
+    Use this resource to retrieve comprehensive details about a specific RDS instance,
+    including its networking, configuration, and performance metrics.
+    </use_case>
+
+    <important_notes>
+    1. The response provides the essential information (identifiers, engine, etc.) about each instance
+    2. Instance identifiers returned can be used with other tools and resources in this MCP server
+    3. Keep note of the DBInstanceIdentifier and DbiResourceId for use with other tools
+    4. Instances are filtered to the AWS region specified in your environment configuration
+    5. Use the `aws-rds://db-instance/{db_instance_identifier}` to get more information about a specific instance
+    </important_notes>
+
+    ## Response structure
+    Returns an array of DB instance objects, each containing:
+    - `DBInstanceIdentifier`: Unique identifier for the instance (string)
+    - `DbiResourceId`: The unique resource identifier for this instance (string)
+    - `DBInstanceArn`: ARN of the instance (string)
+    - `DBInstanceStatus`: Current status of the instance (string)
+    - `DBInstanceClass`: The compute and memory capacity class (string)
+    - `Engine`: Database engine type (string)
+    - `AvailabilityZone`: The AZ where the instance resides (string)
+    - `MultiAZ`: Whether the instance is Multi-AZ (boolean)
+    - `TagList`: List of tags attached to the instance
+
+    <examples>
+    Example usage scenarios:
+    1. Discovery and inventory:
+       - List all available RDS instances to create an inventory
+
+    2. Preparation for other operations:
+       - Find specific instance identifiers to use with performance monitoring tools
+       - Identify instances that may need maintenance or upgrades
+    </examples>
+    """
+    return await get_instance_details(
+        rds_client=rds_client, db_instance_identifier=db_instance_identifier
+    )
+
+
 @mcp.resource(uri='aws-rds://db-cluster', name='ListClusters', mime_type='application/json')
 async def list_clusters_resource() -> List[dict]:
     """List all available Amazon RDS clusters in your account.
@@ -155,6 +205,55 @@ async def list_clusters_resource() -> List[dict]:
     </examples>
     """
     return await list_clusters(rds_client=rds_client)
+
+
+@mcp.resource(
+    uri='aws-rds://db-cluster/{db_cluster_identifier}',
+    name='GetClusterDetails',
+    mime_type='application/json',
+)
+async def cluster_details_resource(db_cluster_identifier: str) -> dict:
+    """Get detailed information about a specific RDS cluster.
+
+    <use_case>
+    Use this resource to retrieve comprehensive details about a specific RDS cluster,
+    including its instances, networking, and configuration.
+    </use_case>
+
+    <important_notes>
+    1. The response provides the essential information (identifiers, engine, etc.) about each cluster
+    2. Cluster identifiers returned can be used with other tools and resources in this MCP server
+    3. Keep note of the db_cluster_identifier and db_cluster_resource_id for use with other tools
+    4. Clusters are filtered to the AWS region specified in your environment configuration
+    5. Use the `aws-rds://db-cluster/{db_cluster_identifier}` to get more information about a specific cluster
+    </important_notes>
+
+    ## Response structure
+    Returns an array of DB cluster objects, each containing:
+    - `db_cluster_identifier`: Unique identifier for the cluster (string)
+    - `db_cluster_resource_id`: The unique resource identifier for this cluster (string)
+    - `db_cluster_arn`: ARN of the cluster (string)
+    - `status`: Current status of the cluster (string)
+    - `engine`: Database engine type (string)
+    - `engine_version`: The version of the database engine (string)
+    - `availability_zones`: The AZs where the cluster instances can be created (array of strings)
+    - `multi_az`: Whether the cluster has instances in multiple Availability Zones (boolean)
+    - `tag_list`: List of tags attached to the cluster
+
+    <examples>
+    Example usage scenarios:
+    1. Discovery and inventory:
+       - List all available RDS clusters to create an inventory
+       - Identify cluster engine types and versions in your environment
+
+    2. Preparation for other operations:
+       - Find specific cluster identifiers to use with management tools
+       - Identify clusters that may need maintenance or upgrades
+    </examples>
+    """
+    return await get_cluster_details(
+        rds_client=rds_client, cluster_identifier=db_cluster_identifier
+    )
 
 
 def main():
