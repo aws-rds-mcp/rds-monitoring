@@ -12,4 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-PAGINATION_CONFIG = {'MaxItems': 100, 'PageSize': 10}
+from mypy_boto3_rds.type_defs import PaginatorConfigTypeDef
+
+
+# Error Messages
+ERROR_AWS_API = 'AWS API error: {}'
+ERROR_UNEXPECTED = 'Unexpected error: {}'
+
+# Pagination & Retrieval Limits
+
+MAX_ITEMS = 100
+PAGINATION_CONFIG: PaginatorConfigTypeDef = {
+    'MaxItems': MAX_ITEMS,
+    'PageSize': 10,
+}
