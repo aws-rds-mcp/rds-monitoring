@@ -261,9 +261,9 @@ async def cluster_details_resource(db_cluster_identifier: str) -> dict:
 
 
 @mcp.tool(
-    name='DescribeRDSResourceEvents',
+    name='DescribeRDSEvents',
 )
-async def describe_rds_resource_events_tool(
+async def describe_rds_events_tool(
     ctx: Context,
     source_identifier: str = Field(
         ...,
