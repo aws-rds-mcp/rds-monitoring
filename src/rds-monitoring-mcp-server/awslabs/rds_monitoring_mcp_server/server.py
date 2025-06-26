@@ -27,9 +27,12 @@ from awslabs.rds_monitoring_mcp_server.discovery import (
     list_clusters,
     list_instances,
 )
+from awslabs.rds_monitoring_mcp_server.events import describe_rds_events
+from datetime import datetime
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
-from typing import List
+from pydantic import Field
+from typing import List, Literal, Optional
 
 
 # Remove all default handlers then add our own
@@ -253,6 +256,101 @@ async def cluster_details_resource(db_cluster_identifier: str) -> dict:
     """
     return await get_cluster_details(
         rds_client=rds_client, cluster_identifier=db_cluster_identifier
+    )
+
+
+@mcp.tool(
+    name='DescribeRDSResourceEvents',
+)
+async def describe_rds_resource_events_tool(
+    source_identifier: str = Field(
+        ...,
+        description='The identifier of the event source (e.g., DBInstanceIdentifier or DBClusterIdentifier). A valid identifier must be provided.',
+    ),
+    source_type: Literal[
+        'db-instance',
+        'db-parameter-group',
+        'db-security-group',
+        'db-snapshot',
+        'db-cluster',
+        'db-cluster-snapshot',
+        'custom-engine-version',
+        'db-proxy',
+        'blue-green-deployment',
+    ] = Field(..., description='The type of source'),
+    event_categories: Optional[List[str]] = Field(
+        None, description='The categories of events (e.g., backup, configuration change)'
+    ),
+    duration: Optional[int] = Field(
+        None,
+        description='The number of minutes in the past to retrieve events (up to 14 days/20160 minutes)',
+    ),
+    start_time: Optional[str] = Field(
+        None, description='The beginning of the time interval to retrieve events (ISO8601 format)'
+    ),
+    end_time: Optional[str] = Field(
+        None, description='The end of the time interval to retrieve events (ISO8601 format)'
+    ),
+) -> str:
+    """List events for an RDS resource.
+
+    This tool retrieves events for RDS resources such as DB instances, clusters,
+    security groups, etc. Events can be filtered by source identifier, category,
+    time period, and source type.
+
+    <use_case>
+    Use this tool to monitor and troubleshoot RDS resources by retrieving event information.
+    Events include operational activities, status changes, and notifications about your
+    RDS resources.
+    </use_case>
+
+    <important_notes>
+    1. You must provide a valid source_identifier and source_type
+    2. For time-based filtering, you can use either duration or start_time/end_time, but not both
+    3. Duration is limited to 14 days (20160 minutes) in the past
+    4. Start and end times must be in ISO8601 format
+    5. Use the event categories to filter specific types of events (backup, configuration change, etc.)
+    </important_notes>
+
+    Args:
+        source_identifier: The identifier of the event source (e.g., DB instance or DB cluster)
+        source_type: The type of source ('db-instance', 'db-security-group', 'db-parameter-group',
+                    'db-snapshot', 'db-cluster', or 'db-cluster-snapshot')
+        event_categories: The categories of events (e.g., 'backup', 'configuration change', etc.)
+        duration: The number of minutes in the past to retrieve events
+        start_time: The beginning of the time interval to retrieve events (ISO8601 format)
+        end_time: The end of the time interval to retrieve events (ISO8601 format)
+
+    Returns:
+        str: A JSON string containing a list of events for the specified resource
+
+    <examples>
+    Example usage scenarios:
+    1. View recent events for a DB instance:
+       - Retrieve events from the last 24 hours for a specific instance
+       - Check for any configuration changes or maintenance activities
+
+    2. Investigate issues with a DB cluster:
+       - Look for failover events during a specific time period
+       - Check for connectivity or availability issues reported in events
+
+    3. Monitor backup status:
+       - Filter events by the 'backup' category to verify successful backups
+       - Identify any backup failures or issues
+    </examples>
+    """
+    # Convert string datetime to python datetime objects if provided
+    start_time_dt = None if start_time is None else datetime.fromisoformat(start_time)
+    end_time_dt = None if end_time is None else datetime.fromisoformat(end_time)
+
+    return await describe_rds_events(
+        rds_client=rds_client,
+        source_identifier=source_identifier,
+        source_type=source_type,
+        event_categories=event_categories,
+        duration=duration,
+        start_time=start_time_dt,
+        end_time=end_time_dt,
     )
 
 
