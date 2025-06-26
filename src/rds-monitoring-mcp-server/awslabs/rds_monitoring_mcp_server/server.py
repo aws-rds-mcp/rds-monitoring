@@ -28,9 +28,10 @@ from awslabs.rds_monitoring_mcp_server.discovery import (
     list_instances,
 )
 from awslabs.rds_monitoring_mcp_server.events import describe_rds_events
+from awslabs.rds_monitoring_mcp_server.recommendations import get_recommendations
 from datetime import datetime
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import List, Literal, Optional
 
@@ -263,6 +264,7 @@ async def cluster_details_resource(db_cluster_identifier: str) -> dict:
     name='DescribeRDSResourceEvents',
 )
 async def describe_rds_resource_events_tool(
+    ctx: Context,
     source_identifier: str = Field(
         ...,
         description='The identifier of the event source (e.g., DBInstanceIdentifier or DBClusterIdentifier). A valid identifier must be provided.',
@@ -313,6 +315,7 @@ async def describe_rds_resource_events_tool(
     </important_notes>
 
     Args:
+        ctx: The MCP context object for handling the request and providing access to server utilities
         source_identifier: The identifier of the event source (e.g., DB instance or DB cluster)
         source_type: The type of source ('db-instance', 'db-security-group', 'db-parameter-group',
                     'db-snapshot', 'db-cluster', or 'db-cluster-snapshot')
@@ -351,6 +354,99 @@ async def describe_rds_resource_events_tool(
         duration=duration,
         start_time=start_time_dt,
         end_time=end_time_dt,
+        ctx=ctx,
+    )
+
+
+@mcp.tool(
+    name='GetRDSRecommendations',
+)
+async def get_rds_recommendations_tool(
+    ctx: Context,
+    last_updated_after: Optional[str] = Field(
+        None,
+        description='Filter to include recommendations updated after this time (ISO8601 format)',
+    ),
+    last_updated_before: Optional[str] = Field(
+        None,
+        description='Filter to include recommendations updated before this time (ISO8601 format)',
+    ),
+    status: Optional[Literal['active', 'pending', 'resolved', 'dismissed']] = Field(
+        None, description='Filter by recommendation status'
+    ),
+    severity: Optional[Literal['high', 'medium', 'low', 'informational']] = Field(
+        None, description='Filter by recommendation severity'
+    ),
+    cluster_resource_id: Optional[str] = Field(
+        None, description='Filter by cluster resource identifier'
+    ),
+    dbi_resource_id: Optional[str] = Field(
+        None, description='Filter by database instance resource identifier'
+    ),
+) -> str:
+    """Get RDS recommendations.
+
+    This tool retrieves recommendations for RDS resources such as DB instances and clusters.
+    Recommendations include operational suggestions, performance improvements, and best practices
+    tailored to your specific RDS resources.
+
+    <use_case>
+    Use this tool to discover potential improvements and best practices for your RDS resources.
+    Recommendations can help optimize performance, reduce costs, improve availability, and enhance
+    security of your RDS databases.
+    </use_case>
+
+    <important_notes>
+    1. You can filter recommendations by various criteria including status, severity, and resource IDs
+    2. Time-based filters use ISO8601 format (e.g., '2025-06-01T00:00:00Z')
+    3. Recommendations are categorized by severity to help prioritize actions
+    4. Each recommendation includes detailed descriptions and specific actions to take
+    </important_notes>
+
+    Args:
+        ctx: The MCP context object for handling the request and providing access to server utilities
+        last_updated_after: Filter to include recommendations updated after this time (ISO8601 format)
+        last_updated_before: Filter to include recommendations updated before this time (ISO8601 format)
+        status: Filter by recommendation status ('active', 'pending', 'resolved', 'dismissed')
+        severity: Filter by recommendation severity ('high', 'medium', 'low', 'informational')
+        cluster_resource_id: Filter by cluster resource identifier
+        dbi_resource_id: Filter by database instance resource identifier
+
+    Returns:
+        str: A JSON string containing a list of recommendations for the specified resources
+
+    <examples>
+    Example usage scenarios:
+    1. Discover performance improvement opportunities:
+       - Retrieve all active recommendations for a specific DB instance
+       - Identify areas where database performance can be enhanced
+
+    2. Security recommendations:
+       - Find all security-related recommendations by filtering on category or keywords
+       - Address high-severity security recommendations as a priority
+
+    3. Cost optimization:
+       - Find recommendations related to instance sizing and utilization
+       - Identify opportunities to reduce costs through resource optimization
+    </examples>
+    """
+    # Convert string datetime to python datetime objects if provided
+    last_updated_after_dt = (
+        None if last_updated_after is None else datetime.fromisoformat(last_updated_after)
+    )
+    last_updated_before_dt = (
+        None if last_updated_before is None else datetime.fromisoformat(last_updated_before)
+    )
+
+    return await get_recommendations(
+        rds_client=rds_client,
+        last_updated_after=last_updated_after_dt,
+        last_updated_before=last_updated_before_dt,
+        status=status,
+        severity=severity,
+        cluster_resource_id=cluster_resource_id,
+        dbi_resource_id=dbi_resource_id,
+        ctx=ctx,
     )
 
 

@@ -14,7 +14,6 @@
 
 """Data models for the RDS Monitoring MCP Server."""
 
-from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Literal, Optional
 
@@ -381,10 +380,8 @@ class DBRecommendation(BaseModel):
         ...,
         description="Status: 'active' (ready to apply), 'pending' (in progress), 'resolved' (completed), or 'dismissed'",
     )
-    created_time: datetime = Field(..., description='The time when the recommendation was created')
-    updated_time: datetime = Field(
-        ..., description='The time when the recommendation was last updated'
-    )
+    created_time: str = Field(..., description='The time when the recommendation was created')
+    updated_time: str = Field(..., description='The time when the recommendation was last updated')
 
     # Core content fields
     detection: Optional[str] = Field(None, description='Short description of the issue identified')

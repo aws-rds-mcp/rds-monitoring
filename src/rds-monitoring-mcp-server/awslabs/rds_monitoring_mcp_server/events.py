@@ -19,6 +19,7 @@ from awslabs.rds_monitoring_mcp_server.constants import MAX_ITEMS
 from awslabs.rds_monitoring_mcp_server.models import DBEvent, DBEventList
 from awslabs.rds_monitoring_mcp_server.utils import handle_aws_error
 from datetime import datetime
+from mcp.server.fastmcp import Context
 from mypy_boto3_rds import RDSClient
 from mypy_boto3_rds.type_defs import EventTypeDef
 from typing import List, Literal, Optional
@@ -68,6 +69,7 @@ async def describe_rds_events(
     duration: Optional[int] = None,
     start_time: Optional[datetime] = None,
     end_time: Optional[datetime] = None,
+    ctx: Optional[Context] = None,
 ) -> str:
     """List events for an RDS resource.
 
@@ -84,6 +86,7 @@ async def describe_rds_events(
         duration: The number of minutes in the past to retrieve events (up to 14 days/20160 minutes)
         start_time: The beginning of the time interval to retrieve events
         end_time: The end of the time interval to retrieve events
+        ctx: The MCP context object for error handling and logging
 
     Returns:
         str: A JSON string containing a list of events in the database
@@ -117,6 +120,6 @@ async def describe_rds_events(
         return json.dumps(serializable_dict, indent=2)
     except Exception as e:
         error_result = await handle_aws_error(
-            f'describe_events({source_identifier, source_type})', e, None
+            f'describe_events({source_identifier, source_type})', e, ctx=ctx
         )
         return json.dumps(error_result, indent=2)
