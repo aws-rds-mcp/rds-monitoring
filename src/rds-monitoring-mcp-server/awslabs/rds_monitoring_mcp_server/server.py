@@ -359,9 +359,9 @@ async def describe_rds_resource_events_tool(
 
 
 @mcp.tool(
-    name='GetRDSRecommendations',
+    name='DescribeRDSRecommendations',
 )
-async def get_rds_recommendations_tool(
+async def describe_rds_recommendations_tool(
     ctx: Context,
     last_updated_after: Optional[str] = Field(
         None,
