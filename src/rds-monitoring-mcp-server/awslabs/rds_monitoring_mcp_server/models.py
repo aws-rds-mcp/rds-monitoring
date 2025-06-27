@@ -15,7 +15,7 @@
 """Data models for the RDS Monitoring MCP Server."""
 
 from pydantic import BaseModel, Field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 
 # Instance & Cluster Models
@@ -307,3 +307,111 @@ class ClusterDetails(BaseModel):
     pending_modified_values: Optional[Dict[str, Any]] = Field(
         None, description='Information about pending changes to the DB cluster'
     )
+
+
+class DBEvent(BaseModel):
+    """A model representing a database event."""
+
+    message: str = Field(..., description='Text of this event')
+    event_categories: List[str] = Field(..., description='Categories for the event')
+    date: str = Field(..., description='Date and time of the event')
+    source_arn: Optional[str] = Field(
+        None, description='The Amazon Resource Name (ARN) for the event'
+    )
+
+
+class DBEventList(BaseModel):
+    """A model representing the response of the describe_rds_events function."""
+
+    source_identifier: str = Field(..., description='Identifier for the source of the event')
+    source_type: Literal[
+        'db-instance',
+        'db-parameter-group',
+        'db-security-group',
+        'db-snapshot',
+        'db-cluster',
+        'db-cluster-snapshot',
+        'custom-engine-version',
+        'db-proxy',
+        'blue-green-deployment',
+    ]
+    events: List[DBEvent] = Field(..., description='List of DB events')
+    count: int = Field(..., description='Total number of events')
+
+
+# Recommendations Models
+
+
+class SimplifiedMetric(BaseModel):
+    """A simplified metric relevant to a recommendation."""
+
+    name: str = Field(..., description='Name of the metric (e.g., CPUUtilization, FreeableMemory)')
+    statistics_details: str = Field(
+        ...,
+        description='The details of different statistics for a metric. The description might contain markdown.',
+    )
+
+
+class RecommendedAction(BaseModel):
+    """A simplified model representing a recommended action.
+
+    Contains only the essential information needed for LLM summarization.
+    """
+
+    title: str = Field(..., description='The title of the action')
+    description: Optional[str] = Field(None, description='The description of the action')
+    relevant_metrics: Optional[List[SimplifiedMetric]] = Field(
+        None, description='Key metrics directly relevant to this recommendation'
+    )
+
+
+class DBRecommendation(BaseModel):
+    """A simplified model for RDS database recommendations designed for LLM summarization.
+
+    Contains only the essential information needed for summarizing RDS recommendations,
+    removing detailed technical information that's not crucial for high-level understanding.
+    """
+
+    recommendation_id: str = Field(..., description='The unique identifier for the recommendation')
+    severity: str = Field(
+        ..., description="Severity level: 'high', 'medium', 'low', or 'informational'"
+    )
+    status: str = Field(
+        ...,
+        description="Status: 'active' (ready to apply), 'pending' (in progress), 'resolved' (completed), or 'dismissed'",
+    )
+    created_time: str = Field(..., description='The time when the recommendation was created')
+    updated_time: str = Field(..., description='The time when the recommendation was last updated')
+
+    # Core content fields
+    detection: Optional[str] = Field(None, description='Short description of the issue identified')
+    recommendation: Optional[str] = Field(
+        None, description='Short description of how to resolve the issue'
+    )
+    description: Optional[str] = Field(
+        None, description='Detailed description of the recommendation'
+    )
+    reason: Optional[str] = Field(
+        None, description='The reason why this recommendation was created'
+    )
+    category: Optional[str] = Field(
+        None,
+        description="Category: 'performance efficiency', 'security', 'reliability', 'cost optimization', 'operational excellence', or 'sustainability'",
+    )
+    impact: Optional[str] = Field(
+        None, description='Short description that explains the possible impact of an issue'
+    )
+
+    # Simplified actions
+    recommended_actions: Optional[List[RecommendedAction]] = Field(
+        None, description='The list of recommended actions to resolve the issues'
+    )
+
+
+class DBRecommendationList(BaseModel):
+    """A simplified model representing a list of database recommendations for LLM summarization."""
+
+    recommendations: List[DBRecommendation] = Field(
+        ..., description='The list of simplified database recommendations'
+    )
+    count: int = Field(..., description='The number of recommendations.')
