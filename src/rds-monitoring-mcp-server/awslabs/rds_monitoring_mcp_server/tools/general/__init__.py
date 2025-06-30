@@ -12,17 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mypy_boto3_rds.type_defs import PaginatorConfigTypeDef
+# This file is part of the awslabs namespace.
+# It is intentionally minimal to support PEP 420 namespace packages.
 
 
-# Error Messages
-ERROR_AWS_API = 'AWS API error: {}'
-ERROR_UNEXPECTED = 'Unexpected error: {}'
+from .describe_rds_events import describe_rds_events
+from .describe_rds_performance_metrics import describe_rds_performance_metrics
+from .describe_rds_recommendations import describe_rds_recommendations
 
-# Pagination & Retrieval Limits
-
-MAX_ITEMS = 100
-PAGINATION_CONFIG: PaginatorConfigTypeDef = {
-    'MaxItems': MAX_ITEMS,
-    'PageSize': 20,
-}
+__all__ = [
+    'describe_rds_events',
+    'describe_rds_performance_metrics',
+    'describe_rds_recommendations',
+]

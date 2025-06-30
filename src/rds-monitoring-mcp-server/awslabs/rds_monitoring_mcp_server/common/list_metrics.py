@@ -12,17 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from awslabs.rds_monitoring_mcp_server.models import ListMetricItem
-from mypy_boto3_cloudwatch import CloudWatchClient
+"""A helper function used by the cluster and instance list metrics resources."""
+
+from common.connection import CloudwatchConnectionManager
+from pydantic import BaseModel, Field
 
 
-async def list_metrics(
-    cloudwatch_client: CloudWatchClient, dimension_name: str, dimension_value: str
-):
+class ListMetricItem(BaseModel):
+    """A model for a metric included in the response of the availble metrics resources."""
+
+    metric_name: str = Field(..., description='Name of the metric')
+    recently_published_data_points: bool = Field(
+        ...,
+        description='Whether this metric has had data points published in the past three hours',
+    )
+
+
+async def list_metrics(dimension_name: str, dimension_value: str):
     """List available CloudWatch metrics for a given RDS resource.
 
     Args:
-        cloudwatch_client: The CloudWatch client to use for API calls
         dimension_name: The name of the dimension to filter metrics by (e.g., 'DBInstanceIdentifier')
         dimension_value: The value of the dimension to filter metrics by (e.g., instance ID)
 
@@ -30,6 +39,7 @@ async def list_metrics(
         List of metrics as ListMetricItem objects with information about availability
         and recent activity
     """
+    cloudwatch_client = CloudwatchConnectionManager.get_connection()
     paginator = cloudwatch_client.get_paginator('list_metrics')
 
     # Get all metrics for the dimension
