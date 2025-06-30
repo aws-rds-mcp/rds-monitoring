@@ -21,6 +21,9 @@ from awslabs.rds_monitoring_mcp_server.clients import (
     get_pi_client,
     get_rds_client,
 )
+from awslabs.rds_monitoring_mcp_server.describe_performance_metrics import (
+    describe_rds_performance_metrics,
+)
 from awslabs.rds_monitoring_mcp_server.discovery import (
     get_cluster_details,
     get_instance_details,
@@ -28,6 +31,8 @@ from awslabs.rds_monitoring_mcp_server.discovery import (
     list_instances,
 )
 from awslabs.rds_monitoring_mcp_server.events import describe_rds_events
+from awslabs.rds_monitoring_mcp_server.list_metrics import list_metrics
+from awslabs.rds_monitoring_mcp_server.metrics_guide import load_markdown_file
 from awslabs.rds_monitoring_mcp_server.recommendations import get_recommendations
 from datetime import datetime
 from loguru import logger
@@ -260,6 +265,94 @@ async def cluster_details_resource(db_cluster_identifier: str) -> dict:
     )
 
 
+@mcp.resource(
+    uri='aws-rds://db-cluster/{db_cluster_identifier}/available_metrics', name='ListClusterMetrics'
+)
+async def list_cluster_metrics_resource(db_cluster_identifier: str) -> List[str]:
+    """List available metrics for a RDS cluster.
+
+    This tool retrieves a list of available metrics for a RDS cluster.
+
+    <use_case>
+    Use this tool to discover the available metrics for a RDS cluster.
+    </use_case>
+
+    <important_notes>
+    1. The response provides the list of available metrics for the cluster
+    2. Metrics are filtered to the AWS region specified in your environment configuration
+    3. Use the `aws-rds://db-cluster/{db_cluster_identifier}/metrics/{metric_name}` to get more information about a specific metric
+    </important_notes>
+
+    Args:
+        ctx: The MCP context object for handling the request and providing access to server utilities
+        db_cluster_identifier: The identifier of the RDS cluster
+
+    Returns:
+        List[str]: A list of available metrics for the RDS cluster
+    """
+    return await list_metrics(
+        cloudwatch_client=cloudwatch_client,
+        dimension_name='DBClusterIdentifier',
+        dimension_value=db_cluster_identifier,
+    )
+
+
+@mcp.resource(
+    uri='aws-rds://db-instance/{db_instance_identifier}/available_metrics',
+    name='ListInstanceMetrics',
+)
+async def list_instance_metrics_resource(db_instance_identifier: str) -> List[str]:
+    """List available metrics for a specific Amazon RDS instance.
+
+    <use_case>
+    Use this resource to discover all available CloudWatch metrics for a specific RDS database instance.
+    These metrics provide insights into database performance, resource utilization, and operational health.
+    </use_case>
+
+    <important_notes>
+    1. The response provides a complete list of available metrics specific to the instance
+    2. The db_instance_identifier parameter must match an existing RDS instance
+    3. Metrics are filtered to the AWS region specified in your environment configuration
+    4. Use the `aws-rds://db-instance/{db_instance_identifier}/metrics/{metric_name}` resource to retrieve
+       actual metric data for a specific metric
+    5. The metrics returned include both standard CloudWatch metrics and enhanced monitoring metrics
+       if enabled on the instance
+    </important_notes>
+
+    Args:
+        db_instance_identifier: The identifier of the RDS instance to retrieve metrics for
+
+    Returns:
+        List[str]: A list of available metric names for the specified RDS instance
+
+    <examples>
+    Example usage scenarios:
+    1. Performance monitoring setup:
+       - Discover available metrics before setting up monitoring dashboards
+       - Identify which metrics are available for specific database engines
+
+    2. Alerting configuration:
+       - Find relevant metrics for creating CloudWatch alarms
+       - Determine appropriate metrics for different monitoring needs (CPU, memory, I/O)
+    </examples>
+    """
+    return await list_metrics(
+        cloudwatch_client=cloudwatch_client,
+        dimension_name='DBInstanceIdentifier',
+        dimension_value=db_instance_identifier,
+    )
+
+
+@mcp.resource(uri='aws-rds://metrics_guide', name='RDSMetricGuide')
+async def metrics_guide_resource() -> str:
+    """Provide a link to the Amazon RDS Metrics Guide.
+
+    <use_case>
+    Use this resource to access the comprehensive Amazon RDS Metrics Guide for
+    """
+    return load_markdown_file('metrics_guide.md')
+
+
 @mcp.tool(
     name='DescribeRDSEvents',
 )
@@ -447,6 +540,100 @@ async def describe_rds_recommendations_tool(
         cluster_resource_id=cluster_resource_id,
         dbi_resource_id=dbi_resource_id,
         ctx=ctx,
+    )
+
+
+@mcp.tool(name='DescribeRDSPerformanceMetrics')
+async def describe_rds_performance_metrics_tool(
+    resource_identifier: str = Field(
+        ...,
+        description='The identifier of the RDS resource (DBInstanceIdentifier or DBClusterIdentifier)',
+    ),
+    resource_type: Literal['instance', 'cluster', 'global_cluster'] = Field(
+        ...,
+        description='Type of RDS resource to fetch metrics for (instance, cluster, or global_cluster)',
+    ),
+    start_date: str = Field(
+        ...,
+        description='The start time for the metrics query in ISO 8601 format (e.g., 2025-06-01T00:00:00Z)',
+    ),
+    end_date: str = Field(
+        ...,
+        description='The end time for the metrics query in ISO 8601 format (e.g., 2025-06-29T00:00:00Z)',
+    ),
+    period: int = Field(
+        ...,
+        description='The granularity, in seconds, of the returned datapoints (e.g., 60 for per-minute data)',
+    ),
+    stat: Literal['SampleCount', 'Sum', 'Average', 'Minimum', 'Maximum'] = Field(
+        ...,
+        description='The statistic to retrieve for the specified metric (SampleCount, Sum, Average, Minimum, or Maximum)',
+    ),
+    scan_by: Literal['TimestampDescending', 'TimestampAscending'] = Field(
+        ...,
+        description='The order to scan the results by timestamp (newest first or oldest first)',
+    ),
+):
+    """Retrieve performance metrics for RDS resources.
+
+    This tool fetches detailed performance metrics for Amazon RDS resources including
+    instances, clusters, and global clusters. It allows you to query metrics over a
+    specified time period with configurable statistics and granularity.
+
+    <use_case>
+    Use this tool to monitor performance, analyze trends, and troubleshoot issues with your
+    RDS databases. Performance metrics can help identify bottlenecks, resource constraints,
+    and operational anomalies affecting your database workloads.
+    </use_case>
+
+    <important_notes>
+    1. You must specify the correct resource_type that matches your resource_identifier
+    2. Time range parameters (start_date and end_date) must be in ISO 8601 format
+    3. Period (granularity) must match CloudWatch supported values (e.g., 60, 300, 3600)
+    4. For Aurora clusters, certain metrics are only available at the cluster level
+    5. Choose appropriate statistics based on the metric type (e.g., Average for CPU, Sum for counts)
+    6. Consider using TimestampDescending for recent troubleshooting, TimestampAscending for historical analysis
+    </important_notes>
+
+    Args:
+        resource_identifier: The identifier of the RDS resource (DBInstanceIdentifier or DBClusterIdentifier)
+        resource_type: Type of RDS resource to fetch metrics for (instance, cluster, or global_cluster)
+        start_date: The start time for the metrics query in ISO 8601 format (e.g., 2025-06-01T00:00:00Z)
+        end_date: The end time for the metrics query in ISO 8601 format (e.g., 2025-06-29T00:00:00Z)
+        period: The granularity, in seconds, of the returned datapoints (e.g., 60 for per-minute data)
+        stat: The statistic to retrieve for the specified metric (SampleCount, Sum, Average, Minimum, or Maximum)
+        scan_by: The order to scan the results by timestamp (newest first or oldest first)
+
+    Returns:
+        str: A JSON string containing the requested performance metrics data
+
+    <examples>
+    Example usage scenarios:
+    1. Monitor database performance:
+       - Retrieve CPU utilization metrics for a specific instance over the last hour
+       - Analyze memory usage trends across a cluster during peak hours
+
+    2. Troubleshoot performance issues:
+       - Examine I/O metrics during reported slow periods
+       - Compare database connection counts before and after an incident
+
+    3. Capacity planning:
+       - Analyze resource utilization trends over time to identify growth patterns
+       - Determine if instances are appropriately sized based on workload metrics
+    </examples>
+    """
+    """
+     Fetch CloudWatch metrics from one of four pre-configured lists (global cluster, multi-AZ cluster, Aurora cluster and instance) that best represent a RDS resource’s performance and health. The type of resource (eg. Instance, Cluster, Global Cluster) will be determined using its resource identifier. Metrics included in this list include CPUUtilization, ReadIOPS / WriteIOPS and DatabaseConnections. The complete list of chosen health metrics for instance, cluster and global clusters as well as justification for using a pre-configured list of CloudWatch metrics is listed in 8.4. List of CloudWatch Metrics provided by the describe_rds_performance_metrics tool.
+    """
+    return await describe_rds_performance_metrics(
+        cloudwatch_client=cloudwatch_client,
+        resource_identifier=resource_identifier,
+        resource_type=resource_type,
+        start_date=start_date,
+        end_date=end_date,
+        period=period,
+        stat=stat,
+        scan_by=scan_by,
     )
 
 
