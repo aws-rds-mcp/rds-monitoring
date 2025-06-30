@@ -14,6 +14,7 @@
 
 """Data models for the RDS Monitoring MCP Server."""
 
+from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Literal, Optional
 
@@ -415,3 +416,41 @@ class DBRecommendationList(BaseModel):
         ..., description='The list of simplified database recommendations'
     )
     count: int = Field(..., description='The number of recommendations.')
+
+
+class ListMetricItem(BaseModel):
+    """A model for a metric included in the response of the availble metrics resources."""
+
+    metric_name: str = Field(..., description='Name of the metric')
+    recently_published_data_points: bool = Field(
+        ...,
+        description='Whether this metric has had data points published in the past three hours',
+    )
+
+
+class MessageDetail(BaseModel):
+    """A model for a message associated with a metric data result."""
+
+    code: str = Field(..., description='The error code or status code associated with the message')
+    value: str = Field(..., description='The message text')
+
+
+class DetailedMetricItem(BaseModel):
+    """A model representing a metric data result from CloudWatch GetMetricData API.
+
+    This model contains the detailed information about a specific metric's data points,
+    including timestamps, values, and status information.
+    """
+
+    id: str = Field(..., description='The short name specified to represent this metric')
+    label: str = Field(..., description='The human-readable label associated with the data')
+    timestamps: List[datetime] = Field(..., description='The timestamps for the data points')
+    values: List[float] = Field(
+        ..., description='The data points for the metric corresponding to timestamps'
+    )
+    status_code: Literal['Complete', 'InternalError', 'PartialData', 'Forbidden'] = Field(
+        ..., description='The status of the returned data'
+    )
+    messages: Optional[List[MessageDetail]] = Field(
+        None, description='A list of messages with additional information about the data returned'
+    )

@@ -40,21 +40,23 @@ def extract_metrics(action_dict: RecommendedActionTypeDef) -> Optional[List[Simp
     Returns:
         Optional[List[SimplifiedMetric]]: A list of simplified metrics or None
     """
-    metrics = None
+    metrics: Optional[List[SimplifiedMetric]] = None
 
-    if action_dict.get('IssueDetails') and action_dict['IssueDetails'].get(
-        'PerformanceIssueDetails'
-    ):
-        perf_details = action_dict['IssueDetails']['PerformanceIssueDetails']
-        if perf_details.get('Metrics'):
-            metrics: List[SimplifiedMetric] = []
-            for metric_data in perf_details['Metrics']:
-                if metric_data.get('Name') and metric_data.get('StatisticsDetails'):
+    issue_details = action_dict.get('IssueDetails')
+    if issue_details and issue_details.get('PerformanceIssueDetails'):
+        perf_details = issue_details.get('PerformanceIssueDetails')
+        if perf_details and perf_details.get('Metrics'):
+            metrics_list: List[SimplifiedMetric] = []
+            for metric_data in perf_details.get('Metrics', []):
+                name = metric_data.get('Name')
+                statistics_details = metric_data.get('StatisticsDetails')
+                if name is not None and statistics_details is not None:
                     metric = SimplifiedMetric(
-                        name=metric_data.get('Name'),
-                        statistics_details=metric_data.get('StatisticsDetails'),
+                        name=name,
+                        statistics_details=statistics_details,
                     )
-                    metrics.append(metric)
+                    metrics_list.append(metric)
+            metrics = metrics_list if metrics_list else None
 
     return metrics
 
@@ -88,16 +90,13 @@ def convert_to_dbrecommendation(rec: DBRecommendationTypeDef) -> DBRecommendatio
     Returns:
         DBRecommendation: A model representing the recommendation
     """
-    relevant_metrics = extract_metrics(rec)
-    recommended_actions = None
+    recommended_actions: List[RecommendedAction] = []
 
     if rec.get('RecommendedActions'):
         recommended_actions: List[RecommendedAction] = []
-        for action_dict in rec['RecommendedActions']:
+        for action_dict in rec.get('RecommendedActions', []):
             action_metrics = extract_metrics(action_dict)
-            action = convert_action(
-                action_dict, action_metrics if action_metrics else relevant_metrics
-            )
+            action = convert_action(action_dict, action_metrics if action_metrics else [])
 
             # Skip empty actions where title is empty and both description and relevant_metrics are null
             if (
@@ -136,7 +135,7 @@ async def get_recommendations(
     cluster_resource_id: Optional[str] = None,
     dbi_resource_id: Optional[str] = None,
     ctx: Optional[Context] = None,
-) -> DBRecommendationList:
+) -> str:
     """Retrieve RDS recommendations and convert them to simplified models suitable for LLM summarization and insights.
 
     Args:
