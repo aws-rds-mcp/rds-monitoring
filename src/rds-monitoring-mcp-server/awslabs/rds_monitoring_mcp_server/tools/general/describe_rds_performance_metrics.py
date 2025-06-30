@@ -12,19 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
-from awslabs.rds_monitoring_mcp_server.constants import PAGINATION_CONFIG
-from awslabs.rds_monitoring_mcp_server.models import DetailedMetricItem, MessageDetail
-from awslabs.rds_monitoring_mcp_server.utils import convert_string_to_datetime
+"""describe_rds_performance_metrics helpers, data models and tool implementation."""
+
+import json
+from ...common.connection import CloudwatchConnectionManager
+from ...common.decorators import handle_exceptions
+from ...common.server import mcp
+from ...common.utils import convert_string_to_datetime
+from ...context import Context
 from datetime import datetime, timedelta
-from mypy_boto3_cloudwatch import CloudWatchClient
-from pydantic import Field
+from mcp.types import ToolAnnotations
+from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Literal, Optional
 
 
-# Set up logging
-logger = logging.getLogger(__name__)
-
+# A pre-configured list of metrics that would best describe the performance of a given RDS resource
 
 INSTANCE_METRICS = [
     'CPUUtilization',
@@ -52,9 +54,52 @@ GLOBAL_CLUSTER_METRICS = [
     'AuroraGlobalDBProgressLag',
 ]
 
+# Data Models
+
+
+class MessageDetail(BaseModel):
+    """A model for a message associated with a metric data result."""
+
+    code: str = Field(..., description='The error code or status code associated with the message')
+    value: str = Field(..., description='The message text')
+
+
+class DetailedMetricItem(BaseModel):
+    """A model representing a metric data result from CloudWatch GetMetricData API.
+
+    This model contains the detailed information about a specific metric's data points,
+    including timestamps, values, and status information.
+    """
+
+    id: str = Field(..., description='The short name specified to represent this metric')
+    label: str = Field(..., description='The human-readable label associated with the data')
+    timestamps: List[datetime] = Field(..., description='The timestamps for the data points')
+    values: List[float] = Field(
+        ..., description='The data points for the metric corresponding to timestamps'
+    )
+    status_code: Literal['Complete', 'InternalError', 'PartialData', 'Forbidden'] = Field(
+        ..., description='The status of the returned data'
+    )
+    messages: Optional[List[MessageDetail]] = Field(
+        None, description='A list of messages with additional information about the data returned'
+    )
+
+
+class DetailedMetricItemList(BaseModel):
+    """A model representing a collection of detailed metric items.
+
+    This model contains a list of metric data results along with a count of the items.
+    It is used to return multiple metrics in a structured format.
+    """
+
+    list: List[DetailedMetricItem] = Field(..., description='List of detailed metric items')
+    count: int = Field(..., description='Number of metric items')
+
+
+# Helper Functions
+
 
 async def get_metric_statistics(
-    cloudwatch_client: CloudWatchClient,
     metric_name: str,
     start_time: str,
     end_time: str,
@@ -114,6 +159,7 @@ async def get_metric_statistics(
         params['Unit'] = unit
 
     # Make API call
+    cloudwatch_client = CloudwatchConnectionManager.get_connection()
     response = cloudwatch_client.get_metric_statistics(**params)
 
     # Extract relevant information
@@ -128,8 +174,6 @@ async def get_metric_statistics(
 def build_metric_queries(
     resource_type: str,
     resource_identifier: str,
-    start_date: datetime,
-    end_date: datetime,
     period: int,
     stat: str,
 ):
@@ -196,8 +240,68 @@ def process_metric_data(metric_data: Dict[str, Any]) -> DetailedMetricItem:
     )
 
 
+# MCP Tool Arg
+
+TOOL_DESCRIPTION = """Retrieve performance metrics for RDS resources.
+
+    This tool fetches detailed performance metrics for Amazon RDS resources including
+    instances, clusters, and global clusters. It allows you to query metrics over a
+    specified time period with configurable statistics and granularity.
+
+    <use_case>
+    Use this tool to monitor performance, analyze trends, and troubleshoot issues with your
+    RDS databases. Performance metrics can help identify bottlenecks, resource constraints,
+    and operational anomalies affecting your database workloads.
+    </use_case>
+
+    <important_notes>
+    1. You must specify the correct resource_type that matches your resource_identifier
+    2. Time range parameters (start_date and end_date) must be in ISO 8601 format
+    3. Period (granularity) must match CloudWatch supported values (e.g., 60, 300, 3600)
+    4. For Aurora clusters, certain metrics are only available at the cluster level
+    5. Choose appropriate statistics based on the metric type (e.g., Average for CPU, Sum for counts)
+    6. Consider using TimestampDescending for recent troubleshooting, TimestampAscending for historical analysis
+    </important_notes>
+
+    Args:
+        resource_identifier: The identifier of the RDS resource (DBInstanceIdentifier or DBClusterIdentifier)
+        resource_type: Type of RDS resource to fetch metrics for (instance, cluster, or global_cluster)
+        start_date: The start time for the metrics query in ISO 8601 format (e.g., 2025-06-01T00:00:00Z)
+        end_date: The end time for the metrics query in ISO 8601 format (e.g., 2025-06-29T00:00:00Z)
+        period: The granularity, in seconds, of the returned datapoints (e.g., 60 for per-minute data)
+        stat: The statistic to retrieve for the specified metric (SampleCount, Sum, Average, Minimum, or Maximum)
+        scan_by: The order to scan the results by timestamp (newest first or oldest first)
+
+    Returns:
+        str: A JSON string containing the requested performance metrics data
+
+    <examples>
+    Example usage scenarios:
+    1. Monitor database performance:
+       - Retrieve CPU utilization metrics for a specific instance over the last hour
+       - Analyze memory usage trends across a cluster during peak hours
+
+    2. Troubleshoot performance issues:
+       - Examine I/O metrics during reported slow periods
+       - Compare database connection counts before and after an incident
+
+    3. Capacity planning:
+       - Analyze resource utilization trends over time to identify growth patterns
+       - Determine if instances are appropriately sized based on workload metrics
+    </examples>
+    """
+
+
+@mcp.tool(
+    name='DescribeRDSPerformanceMetrics',
+    description=TOOL_DESCRIPTION,
+    annotations=ToolAnnotations(
+        title='DescribeRDSPerformanceMetrics',
+        readOnlyHint=True,
+    ),
+)
+@handle_exceptions
 async def describe_rds_performance_metrics(
-    cloudwatch_client: CloudWatchClient,
     resource_identifier: str = Field(
         ...,
         description='The identifier of the RDS resource (DBInstanceIdentifier or DBClusterIdentifier)',
@@ -226,35 +330,36 @@ async def describe_rds_performance_metrics(
         ...,
         description='The order to scan the results by timestamp (newest first or oldest first)',
     ),
-) -> List[DetailedMetricItem]:
-    """Describe RDS performance metrics.
+) -> str:
+    """Retrieve performance metrics for RDS resources.
 
-    This tool retrieves performance metrics for RDS resources such as DB instances, clusters,
-    and global clusters. Metrics can be filtered by resource identifier, resource type,
-    time period, and statistic.
+    Args:
+        resource_identifier: The identifier of the RDS resource (DBInstanceIdentifier or DBClusterIdentifier)
+        resource_type: Type of RDS resource to fetch metrics for (instance, cluster, or global_cluster)
+        start_date: The start time for the metrics query in ISO 8601 format (e.g., 2025-06-01T00:00:00Z)
+        end_date: The end time for the metrics query in ISO 8601 format (e.g., 2025-06-29T00:00:00Z)
+        period: The granularity, in seconds, of the returned datapoints (e.g., 60 for per-minute data)
+        stat: The statistic to retrieve for the specified metric (SampleCount, Sum, Average, Minimum, or Maximum)
+        scan_by: The order to scan the results by timestamp (newest first or oldest first)
 
-    <use_case>
-    Use this tool to monitor and troubleshoot RDS resources by retrieving performance metrics.
-    Metrics include CPU utilization, free memory, database connections, network throughput,
-    and other relevant RDS metrics.
-    <use_case>
+    Returns:
+        str: A JSON string containing the requested performance metrics data
     """
     start = convert_string_to_datetime(
         default=datetime.now() - timedelta(days=7), date_string=start_date
     )
     end = convert_string_to_datetime(default=datetime.now(), date_string=end_date)
 
-    metric_queries = build_metric_queries(
-        resource_type, resource_identifier, start, end, period, stat
-    )
+    metric_queries = build_metric_queries(resource_type, resource_identifier, period, stat)
 
+    cloudwatch_client = CloudwatchConnectionManager.get_connection()
     paginator = cloudwatch_client.get_paginator('get_metric_data')
     response_iterator = paginator.paginate(
         MetricDataQueries=metric_queries,
         StartTime=start,
         EndTime=end,
         ScanBy=scan_by,
-        PaginationConfig=PAGINATION_CONFIG,
+        PaginationConfig=Context.get_pagination_config(),
     )
 
     results: List[DetailedMetricItem] = []  # Initialize as an empty list
@@ -263,4 +368,10 @@ async def describe_rds_performance_metrics(
         for metric_data_dict in response['MetricDataResults']:
             results.append(process_metric_data(metric_data_dict))
 
-    return results
+    response_model = DetailedMetricItemList(
+        list=results,
+        count=len(results),
+    )
+
+    serializable_dict = response_model.model_dump()
+    return json.dumps(serializable_dict, indent=2)

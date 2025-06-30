@@ -14,54 +14,10 @@
 
 """Utility functions for the RDS Monitoring MCP Server."""
 
-from .constants import ERROR_AWS_API, ERROR_UNEXPECTED
-from botocore.exceptions import ClientError
 from datetime import datetime
 from loguru import logger
-from mcp.server.fastmcp import Context
-from typing import Any, Dict, Optional
-
-
-async def handle_aws_error(
-    operation: str, error: Exception, ctx: Optional[Context] = None
-) -> Dict[str, Any]:
-    """Handle AWS API errors consistently.
-
-    Args:
-        operation: The operation that failed
-        error: The exception that was raised
-        ctx: MCP context for error reporting
-    Returns:
-        Error response dictionary
-    """
-    if isinstance(error, ClientError):
-        error_code = error.response['Error']['Code']
-        error_message = error.response['Error']['Message']
-        logger.error(f'{operation} failed with AWS error {error_code}: {error_message}')
-
-        error_response = {
-            'error': ERROR_AWS_API.format(error_code),
-            'error_code': error_code,
-            'error_message': error_message,
-            'operation': operation,
-        }
-
-        if ctx:
-            await ctx.error(f'{error_code}: {error_message}')
-
-    else:
-        logger.exception(f'{operation} failed with unexpected error')
-        error_response = {
-            'error': ERROR_UNEXPECTED.format(str(error)),
-            'error_type': type(error).__name__,
-            'error_message': str(error),
-            'operation': operation,
-        }
-
-        if ctx:
-            await ctx.error(str(error))
-
-    return error_response
+from pathlib import Path
+from typing import Any, Optional
 
 
 def convert_datetime_to_string(obj: Any) -> Any:
@@ -139,3 +95,25 @@ def convert_string_to_datetime(default: datetime, date_string: Optional[str] = N
     except ValueError as e:
         logger.warning(f"Error parsing end_date '{date_string}': {str(e)}. Using default value.")
         return default
+
+
+def load_markdown_file(filename: str) -> str:
+    """Load a markdown file from the static/react directory.
+
+    Args:
+        filename (str): The name of the markdown file to load (e.g. 'basic-ui-setup.md')
+
+    Returns:
+        str: The content of the markdown file, or empty string if file not found
+    """
+    base_dir = Path(__file__).parent.parent
+    static_dir = base_dir / 'static'
+    file_path = static_dir / filename
+
+    if file_path.exists():
+        with open(file_path, 'r', encoding='utf-8') as f:
+            logger.info(f'Loading markdown file: {file_path}')
+            return f.read()
+    else:
+        logger.error('File not found: {file_path}')
+        return f'Warning: File not found: {file_path}'
