@@ -12,16 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Constants used across the Amazon RDS Monitoring MCP Server."""
+# This file is part of the awslabs namespace.
+# It is intentionally minimal to support PEP 420 namespace packages.
 
-# MCP Server Version
-MCP_SERVER_VERSION = '0.1.0'
+from .create_rds_performance_report import create_rds_performance_report
 
-# A tag attached to any resources created by the MCP server
-MCP_SERVER_TAG = {
-    'rds_monitoring_mcp_server_version': MCP_SERVER_VERSION,
-}
-
-# Error Messages
-ERROR_AWS_API = 'AWS API error: {}'
-ERROR_UNEXPECTED = 'Unexpected error: {}'
+__all__ = [
+    'create_rds_performance_report',
+]
