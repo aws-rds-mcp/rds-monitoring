@@ -18,12 +18,17 @@ import argparse
 from awslabs.rds_monitoring_mcp_server.common.constants import MCP_SERVER_VERSION
 from awslabs.rds_monitoring_mcp_server.common.server import mcp
 from awslabs.rds_monitoring_mcp_server.context import Context
-from awslabs.rds_monitoring_mcp_server.resources import (  # noqa: F401 - imported for side effects to register resources
-    db_instance as db_instance_resources,
+
+# Import resources and tools for side effects to register them
+from awslabs.rds_monitoring_mcp_server.resources import (
+    db_cluster as db_cluster_resources,  # noqa: F401
 )
-from awslabs.rds_monitoring_mcp_server.tools import (  # noqa: F401 - imported for side effects to register resources
-    db_instance as db_instance_tools,
+from awslabs.rds_monitoring_mcp_server.resources import (
+    db_instance as db_instance_resources,  # noqa: F401
 )
+from awslabs.rds_monitoring_mcp_server.resources import general as general_resources  # noqa: F401
+from awslabs.rds_monitoring_mcp_server.tools import db_instance as db_instance_tools  # noqa: F401
+from awslabs.rds_monitoring_mcp_server.tools import general as general_tools  # noqa: F401
 from loguru import logger
 
 

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""aws-rds://db-cluster data models and resource implementation."""
 
 from ...common.connection import RDSConnectionManager
 from ...common.server import mcp
