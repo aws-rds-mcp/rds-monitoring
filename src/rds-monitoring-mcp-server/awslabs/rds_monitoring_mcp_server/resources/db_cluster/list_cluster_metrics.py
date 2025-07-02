@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""aws-rds://db-cluster/{db_cluster_identifier}/available_metrics data models and resource implementation."""
+
 from ...common.decorators import handle_exceptions
 from ...common.list_metrics import list_metrics
 from ...common.server import mcp

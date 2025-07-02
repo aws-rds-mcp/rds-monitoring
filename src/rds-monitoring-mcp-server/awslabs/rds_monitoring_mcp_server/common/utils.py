@@ -17,7 +17,7 @@
 from datetime import datetime
 from loguru import logger
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 
 def convert_datetime_to_string(obj: Any) -> Any:
@@ -117,3 +117,20 @@ def load_markdown_file(filename: str) -> str:
     else:
         logger.error('File not found: {file_path}')
         return f'Warning: File not found: {file_path}'
+
+
+def format_aws_response(response: Dict[str, Any]) -> Dict[str, Any]:
+    """Format AWS API response for MCP.
+
+    Args:
+        response: Raw AWS API response
+
+    Returns:
+        Formatted response dictionary
+    """
+    # remove ResponseMetadata as it's not useful for LLMs
+    if 'ResponseMetadata' in response:
+        del response['ResponseMetadata']
+
+    # convert datetime objects to strings
+    return convert_datetime_to_string(response)

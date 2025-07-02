@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""aws-rds://metrics_guide resource implementation."""
+
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from ...common.utils import load_markdown_file
