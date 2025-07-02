@@ -17,5 +17,11 @@
 
 from .instance_discovery import get_instance_details, get_instance_overview
 from .list_instance_metrics import list_instance_metrics
+from .list_db_logs import list_db_log_files
 
-__all__ = ['get_instance_details', 'get_instance_overview', 'list_instance_metrics']
+__all__ = [
+    'get_instance_details',
+    'get_instance_overview',
+    'list_instance_metrics',
+    'list_db_log_files',
+]
