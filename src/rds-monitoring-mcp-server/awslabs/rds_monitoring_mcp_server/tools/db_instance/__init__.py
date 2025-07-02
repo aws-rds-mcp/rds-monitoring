@@ -15,8 +15,8 @@
 # This file is part of the awslabs namespace.
 # It is intentionally minimal to support PEP 420 namespace packages.
 
-from .create_rds_performance_report import create_rds_performance_report
+from .create_performance_report import create_performance_report
 
 __all__ = [
-    'create_rds_performance_report',
+    'create_performance_report',
 ]

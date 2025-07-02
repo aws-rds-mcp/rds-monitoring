@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""create_rds_performance_report helpers and tool implementation."""
+"""create_performance_report helpers and tool implementation."""
 
 from ...common.connection import PIConnectionManager
 from ...common.constants import MCP_SERVER_TAG
@@ -86,17 +86,17 @@ TOOL_DESCRIPTION = """Create a performance report for an RDS instance.
 
 
 @mcp.tool(
-    name='CreateRDSPerformanceReport',
+    name='CreatePerformanceReport',
     description=TOOL_DESCRIPTION,
     annotations=ToolAnnotations(
-        title='CreateRDSPerformanceReport',
+        title='CreatePerformanceReport',
         readOnlyHint=False,
         destructiveHint=False,
         idempotentHint=False,
     ),
 )
 @handle_exceptions
-async def create_rds_performance_report(
+async def create_performance_report(
     dbi_resource_identifier: str = Field(
         ...,
         description='The DbiResourceId of a RDS Instance (e.g., db-EXAMPLEDBIID) for the data source where PI should get its metrics.',
