@@ -1,81 +1,75 @@
-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-"""Test fixtures for the rds-monitoring-mcp-server tests."""
+"""Global pytest fixtures for Amazon RDS Monitoring MCP Server tests."""
 
 import pytest
-from .test_constants import (
-    MOCK_DB_CLUSTERS_RESPONSE,
-    MOCK_DB_INSTANCES_RESPONSE,
+from awslabs.rds_monitoring_mcp_server.common.connection import (
+    CloudwatchConnectionManager,
+    PIConnectionManager,
+    RDSConnectionManager,
 )
 from unittest.mock import MagicMock, patch
 
 
 @pytest.fixture
 def mock_rds_client():
-    """Create a mock RDS client."""
-    client = MagicMock()
-    client.meta.region_name = 'us-east-1'
+    """Fixture providing a mock RDS client for tests.
 
-    # Set up direct API responses
-    client.describe_db_instances.return_value = MOCK_DB_INSTANCES_RESPONSE
-    client.describe_db_clusters.return_value = MOCK_DB_CLUSTERS_RESPONSE
+    Resets the RDS connection before and after the test.
+    Returns a mock client that's automatically patched into the RDSConnectionManager.
+    """
+    RDSConnectionManager._client = None
 
-    # Set up paginator for describe_db_instances
-    paginator_instances = MagicMock()
-    paginator_instances.paginate.return_value = [MOCK_DB_INSTANCES_RESPONSE]
+    mock_client = MagicMock()
 
-    # Set up paginator for describe_db_clusters
-    paginator_clusters = MagicMock()
-    paginator_clusters.paginate.return_value = [MOCK_DB_CLUSTERS_RESPONSE]
+    with patch.object(RDSConnectionManager, 'get_connection', return_value=mock_client) as _:
+        yield mock_client
 
-    mock_paginators = {
-        'describe_db_instances': paginator_instances,
-        'describe_db_clusters': paginator_clusters,
-    }
-
-    client.get_paginator = MagicMock(side_effect=lambda operation: mock_paginators[operation])
-
-    return client
+    RDSConnectionManager._client = None
 
 
 @pytest.fixture
-def mock_boto3():
-    """Create a mock boto3 module."""
-    with patch('boto3.client') as mock_client, patch('boto3.Session') as mock_session:
-        mock_pi = MagicMock()
-        mock_rds = MagicMock()
-        mock_cloudwatch = MagicMock()
+def mock_pi_client():
+    """Fixture providing a mock PI (Performance Insights) client for tests.
 
-        mock_client.side_effect = lambda service, region_name=None: {
-            'pi': mock_pi,
-            'rds': mock_rds,
-            'cloudwatch': mock_cloudwatch,
-        }[service]
+    Resets the PI connection before and after the test.
+    Returns a mock client that's automatically patched into the PIConnectionManager.
+    """
+    PIConnectionManager._client = None
 
-        mock_session_instance = MagicMock()
-        mock_session_instance.client.side_effect = lambda service, region_name=None: {
-            'pi': mock_pi,
-            'rds': mock_rds,
-            'cloudwatch': mock_cloudwatch,
-        }[service]
-        mock_session.return_value = mock_session_instance
+    mock_client = MagicMock()
 
-        yield {
-            'client': mock_client,
-            'Session': mock_session,
-            'pi': mock_pi,
-            'rds': mock_rds,
-            'cloudwatch': mock_cloudwatch,
-        }
+    with patch.object(PIConnectionManager, 'get_connection', return_value=mock_client) as _:
+        yield mock_client
+
+    PIConnectionManager._client = None
+
+
+@pytest.fixture
+def mock_cloudwatch_client():
+    """Fixture providing a mock CloudWatch client for tests.
+
+    Resets the CloudWatch connection before and after the test.
+    Returns a mock client that's automatically patched into the CloudwatchConnectionManager.
+    """
+    CloudwatchConnectionManager._client = None
+
+    mock_client = MagicMock()
+
+    with patch.object(
+        CloudwatchConnectionManager, 'get_connection', return_value=mock_client
+    ) as _:
+        yield mock_client
+
+    CloudwatchConnectionManager._client = None
+
+
+@pytest.fixture
+def mock_all_clients(mock_rds_client, mock_pi_client, mock_cloudwatch_client):
+    """Fixture that provides mock clients for all AWS services.
+
+    This is a convenience fixture that combines all individual mock client fixtures.
+    Use this when a test needs to interact with multiple AWS services.
+
+    Returns:
+        tuple: (mock_rds_client, mock_pi_client, mock_cloudwatch_client)
+    """
+    return (mock_rds_client, mock_pi_client, mock_cloudwatch_client)

@@ -14,7 +14,7 @@
 
 """A helper function used by the cluster and instance list metrics resources."""
 
-from common.connection import CloudwatchConnectionManager
+from awslabs.rds_monitoring_mcp_server.common.connection import CloudwatchConnectionManager
 from pydantic import BaseModel, Field
 
 

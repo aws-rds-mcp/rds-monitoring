@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for the main function in server.py."""
+"""Tests for main.py."""
 
-from awslabs.rds_monitoring_mcp_server.server import main
+from awslabs.rds_monitoring_mcp_server.main import main
 from unittest.mock import patch
 
 
 class TestMain:
     """Tests for the main function."""
 
-    @patch('awslabs.rds_monitoring_mcp_server.server.mcp.run')
+    @patch('awslabs.rds_monitoring_mcp_server.common.server.mcp.run')
     @patch('sys.argv', ['awslabs.rds-monitoring-mcp-server'])
     def test_main_default(self, mock_run):
         """Test main function with default arguments."""
@@ -39,10 +39,10 @@ class TestMain:
 
         # Get the source code of the module
         import inspect
-        from awslabs.rds_monitoring_mcp_server import server
+        from awslabs.rds_monitoring_mcp_server import main
 
         # Get the source code
-        source = inspect.getsource(server)
+        source = inspect.getsource(main)
 
         # Check that the module has the if __name__ == '__main__': block
         assert "if __name__ == '__main__':" in source
