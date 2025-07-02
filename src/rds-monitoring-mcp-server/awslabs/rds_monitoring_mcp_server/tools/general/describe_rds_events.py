@@ -206,7 +206,7 @@ async def describe_rds_events(
     params = {
         'SourceIdentifier': source_identifier,
         'SourceType': source_type,
-        'MaxRecords': Context.max_items,
+        'MaxRecords': Context.max_items(),
     }
 
     if event_categories:

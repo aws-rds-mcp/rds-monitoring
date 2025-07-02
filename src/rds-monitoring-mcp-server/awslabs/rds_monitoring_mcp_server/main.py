@@ -42,6 +42,7 @@ def main():
     parser.add_argument(
         '--max-items',
         type=int,
+        default=100,
         help='The maximum number of items (logs, reports, etc.) to retrieve',
     )
     parser.add_argument(

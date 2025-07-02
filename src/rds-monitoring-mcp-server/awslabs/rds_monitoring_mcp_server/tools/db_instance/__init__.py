@@ -16,7 +16,6 @@
 # It is intentionally minimal to support PEP 420 namespace packages.
 
 from .create_performance_report import create_performance_report
+from .find_slow_queries_and_wait_events import find_slow_queries_and_wait_events
 
-__all__ = [
-    'create_performance_report',
-]
+__all__ = ['create_performance_report', 'find_slow_queries_and_wait_events']
