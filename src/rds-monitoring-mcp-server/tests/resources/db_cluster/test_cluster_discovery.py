@@ -23,7 +23,7 @@ from awslabs.rds_monitoring_mcp_server.resources.db_cluster.cluster_discovery im
     list_clusters,
 )
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 
 # Common test data
@@ -117,23 +117,17 @@ class TestListClusters:
     """Tests for the list_clusters MCP resource."""
 
     @pytest.mark.asyncio
-    @patch(
-        'awslabs.rds_monitoring_mcp_server.resources.db_cluster.cluster_discovery.RDSConnectionManager'
-    )
-    async def test_standard_response(self, mock_connection_manager):
+    async def test_standard_response(self, mock_rds_client):
         """Test with standard response containing clusters."""
-        mock_rds_client = MagicMock()
         mock_paginator = MagicMock()
         mock_paginator_iterator = MagicMock()
 
-        mock_connection_manager.get_connection.return_value = mock_rds_client
         mock_rds_client.get_paginator.return_value = mock_paginator
         mock_paginator.paginate.return_value = mock_paginator_iterator
         mock_paginator_iterator.__iter__.return_value = [MOCK_DB_CLUSTERS_RESPONSE]
 
         result = await list_clusters()
 
-        mock_connection_manager.get_connection.assert_called_once()
         mock_rds_client.get_paginator.assert_called_once_with('describe_db_clusters')
 
         assert len(result) == 1
@@ -143,16 +137,11 @@ class TestListClusters:
         assert result[0].multi_az is True
 
     @pytest.mark.asyncio
-    @patch(
-        'awslabs.rds_monitoring_mcp_server.resources.db_cluster.cluster_discovery.RDSConnectionManager'
-    )
-    async def test_empty_response(self, mock_connection_manager):
+    async def test_empty_response(self, mock_rds_client):
         """Test with empty response containing no clusters."""
-        mock_rds_client = MagicMock()
         mock_paginator = MagicMock()
         mock_paginator_iterator = MagicMock()
 
-        mock_connection_manager.get_connection.return_value = mock_rds_client
         mock_rds_client.get_paginator.return_value = mock_paginator
         mock_paginator.paginate.return_value = mock_paginator_iterator
         mock_paginator_iterator.__iter__.return_value = [{'DBClusters': []}]
@@ -163,19 +152,14 @@ class TestListClusters:
         assert len(result) == 0
 
     @pytest.mark.asyncio
-    @patch(
-        'awslabs.rds_monitoring_mcp_server.resources.db_cluster.cluster_discovery.RDSConnectionManager'
-    )
-    async def test_with_empty_tags(self, mock_connection_manager):
+    async def test_with_empty_tags(self, mock_rds_client):
         """Test with clusters having empty tag lists."""
         mock_cluster = dict(MOCK_DB_CLUSTER)
         mock_cluster['TagList'] = []
 
-        mock_rds_client = MagicMock()
         mock_paginator = MagicMock()
         mock_paginator_iterator = MagicMock()
 
-        mock_connection_manager.get_connection.return_value = mock_rds_client
         mock_rds_client.get_paginator.return_value = mock_paginator
         mock_paginator.paginate.return_value = mock_paginator_iterator
         mock_paginator_iterator.__iter__.return_value = [{'DBClusters': [mock_cluster]}]
@@ -190,18 +174,12 @@ class TestGetClusterDetails:
     """Tests for the get_cluster_details MCP resource."""
 
     @pytest.mark.asyncio
-    @patch(
-        'awslabs.rds_monitoring_mcp_server.resources.db_cluster.cluster_discovery.RDSConnectionManager'
-    )
-    async def test_standard_response(self, mock_connection_manager):
+    async def test_standard_response(self, mock_rds_client):
         """Test with standard response containing all cluster details."""
-        mock_rds_client = MagicMock()
-        mock_connection_manager.get_connection.return_value = mock_rds_client
         mock_rds_client.describe_db_clusters.return_value = MOCK_DB_CLUSTERS_RESPONSE
 
         result = await get_cluster_details('test-cluster')
 
-        mock_connection_manager.get_connection.assert_called_once()
         mock_rds_client.describe_db_clusters.assert_called_once_with(
             DBClusterIdentifier='test-cluster'
         )
@@ -236,13 +214,8 @@ class TestGetClusterDetails:
         assert result.db_cluster_members[0]['is_cluster_writer'] is True
 
     @pytest.mark.asyncio
-    @patch(
-        'awslabs.rds_monitoring_mcp_server.resources.db_cluster.cluster_discovery.RDSConnectionManager'
-    )
-    async def test_error_handling(self, mock_connection_manager):
+    async def test_error_handling(self, mock_rds_client):
         """Test exception propagation when cluster is not found."""
-        mock_rds_client = MagicMock()
-        mock_connection_manager.get_connection.return_value = mock_rds_client
         mock_rds_client.describe_db_clusters.side_effect = Exception('Cluster not found')
 
         with pytest.raises(Exception) as excinfo:
@@ -251,10 +224,7 @@ class TestGetClusterDetails:
         assert 'Cluster not found' in str(excinfo.value)
 
     @pytest.mark.asyncio
-    @patch(
-        'awslabs.rds_monitoring_mcp_server.resources.db_cluster.cluster_discovery.RDSConnectionManager'
-    )
-    async def test_datetime_handling(self, mock_connection_manager):
+    async def test_datetime_handling(self, mock_rds_client):
         """Test proper conversion of datetime objects in response."""
         test_datetime = datetime(2023, 1, 1, 12, 0, 0)
         mock_cluster = dict(MOCK_DB_CLUSTER)
@@ -262,8 +232,6 @@ class TestGetClusterDetails:
         mock_cluster['EarliestRestorableTime'] = test_datetime
         mock_cluster['LatestRestorableTime'] = test_datetime
 
-        mock_rds_client = MagicMock()
-        mock_connection_manager.get_connection.return_value = mock_rds_client
         mock_rds_client.describe_db_clusters.return_value = {'DBClusters': [mock_cluster]}
 
         result = await get_cluster_details('test-cluster')
