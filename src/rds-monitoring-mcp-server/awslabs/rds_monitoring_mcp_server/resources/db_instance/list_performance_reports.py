@@ -14,7 +14,6 @@
 
 """aws-rds://db-instance/{dbi_resource_identifier}/performance_report data models and resource implementation."""
 
-import json
 from ...common.connection import PIConnectionManager
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
@@ -107,7 +106,7 @@ async def list_performance_reports(
         ...,
         description='The resource identifier for the DB instance. This is the DbiResourceId returned by the ListDBInstances resource',
     ),
-) -> str:
+) -> PerformanceReportListModel:
     """Retrieve all performance reports for a given DB instance.
 
     Args:
@@ -139,4 +138,5 @@ async def list_performance_reports(
         reports=reports,
         count=len(reports),
     )
-    return json.dumps(result.model_dump(), indent=2)
+
+    return result

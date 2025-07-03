@@ -14,11 +14,9 @@
 
 """aws-rds://db-instance/{db_instance_identifier}/log data models and resource implementation."""
 
-import json
 from ...common.connection import RDSConnectionManager
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
-from ...common.utils import convert_datetime_to_string
 from ...context import Context
 from datetime import datetime
 from pydantic import BaseModel, Field
@@ -99,7 +97,7 @@ class DBLogFileListModel(BaseModel):
 @handle_exceptions
 async def list_db_log_files(
     db_instance_identifier: str = Field(..., description='The identifier for the DB instance'),
-) -> str:
+) -> DBLogFileListModel:
     """List all non-empty log files for the database.
 
     Args:
@@ -135,8 +133,4 @@ async def list_db_log_files(
         count=len(log_files),
     )
 
-    # Convert datetime objects to strings for JSON serialization
-    result_dict = result.model_dump()
-    serializable_dict = convert_datetime_to_string(result_dict)
-
-    return json.dumps(serializable_dict, indent=2)
+    return result
