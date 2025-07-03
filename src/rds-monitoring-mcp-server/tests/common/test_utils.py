@@ -17,7 +17,6 @@
 from awslabs.rds_monitoring_mcp_server.common.utils import (
     convert_datetime_to_string,
     convert_string_to_datetime,
-    format_aws_response,
     load_markdown_file,
 )
 from datetime import datetime
@@ -187,77 +186,3 @@ class TestLoadMarkdownFile:
         assert 'Warning: File not found' in result
 
         mock_exists.assert_called_once()
-
-
-class TestFormatAwsResponse:
-    """Tests for format_aws_response function."""
-
-    def test_remove_response_metadata(self):
-        """Test that ResponseMetadata is removed from the response."""
-        test_response = {
-            'DBInstances': [{'DBInstanceIdentifier': 'test-instance'}],
-            'ResponseMetadata': {'RequestId': 'abc123', 'HTTPStatusCode': 200},
-        }
-        result = format_aws_response(test_response)
-
-        assert 'DBInstances' in result
-        assert 'ResponseMetadata' not in result
-
-    def test_datetime_conversion(self):
-        """Test that datetime objects are converted to strings."""
-        creation_date = datetime(2025, 6, 15, 10, 30, 45)
-        test_response = {
-            'DBInstance': {
-                'DBInstanceIdentifier': 'test-instance',
-                'CreationTime': creation_date,
-                'LatestRestorableTime': datetime(2025, 6, 16, 11, 0, 0),
-            }
-        }
-        result = format_aws_response(test_response)
-
-        assert isinstance(result['DBInstance']['CreationTime'], str)
-        assert result['DBInstance']['CreationTime'] == creation_date.isoformat()
-        assert isinstance(result['DBInstance']['LatestRestorableTime'], str)
-
-    def test_nested_datetime_conversion(self):
-        """Test that nested datetime objects are converted to strings."""
-        test_response = {
-            'DBInstances': [
-                {
-                    'DBInstanceIdentifier': 'test-instance-1',
-                    'CreationTime': datetime(2025, 6, 15, 10, 30, 45),
-                    'PendingModifiedValues': {
-                        'ScheduledFor': datetime(2025, 6, 20, 0, 0, 0),
-                    },
-                },
-                {
-                    'DBInstanceIdentifier': 'test-instance-2',
-                    'CreationTime': datetime(2025, 6, 16, 11, 0, 0),
-                    'PendingModifiedValues': {
-                        'ScheduledFor': datetime(2025, 6, 21, 0, 0, 0),
-                    },
-                },
-            ]
-        }
-        result = format_aws_response(test_response)
-
-        assert isinstance(result['DBInstances'][0]['CreationTime'], str)
-        assert isinstance(result['DBInstances'][0]['PendingModifiedValues']['ScheduledFor'], str)
-        assert isinstance(result['DBInstances'][1]['CreationTime'], str)
-        assert isinstance(result['DBInstances'][1]['PendingModifiedValues']['ScheduledFor'], str)
-
-    def test_response_with_no_datetime(self):
-        """Test response with no datetime objects."""
-        test_response = {
-            'DBInstances': [
-                {
-                    'DBInstanceIdentifier': 'test-instance',
-                    'Engine': 'postgres',
-                    'EngineVersion': '14.5',
-                    'MultiAZ': True,
-                }
-            ]
-        }
-        result = format_aws_response(test_response)
-
-        assert result == test_response
