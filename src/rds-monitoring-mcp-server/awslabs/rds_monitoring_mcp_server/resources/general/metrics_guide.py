@@ -16,8 +16,36 @@
 
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
-from ...common.utils import load_markdown_file
+from loguru import logger
+from pathlib import Path
 
+
+# Helper Funcs
+
+
+def load_markdown_file(filename: str) -> str:
+    """Load a markdown file from the static/react directory.
+
+    Args:
+        filename (str): The name of the markdown file to load (e.g. 'basic-ui-setup.md')
+
+    Returns:
+        str: The content of the markdown file, or empty string if file not found
+    """
+    base_dir = Path(__file__).parent.parent
+    static_dir = base_dir / 'static'
+    file_path = static_dir / filename
+
+    if file_path.exists():
+        with open(file_path, 'r', encoding='utf-8') as f:
+            logger.info(f'Loading markdown file: {file_path}')
+            return f.read()
+    else:
+        logger.error('File not found: {file_path}')
+        return f'Warning: File not found: {file_path}'
+
+
+# MCP Resource Args
 
 RESOURCE_DESCRIPTION = """Provide a link to the Amazon RDS Metrics Guide.
 
