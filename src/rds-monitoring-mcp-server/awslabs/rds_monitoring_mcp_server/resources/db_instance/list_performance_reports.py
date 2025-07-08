@@ -12,18 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""aws-rds://db-instance/{dbi_resource_identifier}/performance_report data models and resource implementation."""
+"""Resource for listing available RDS DB Performance Reports."""
 
+import asyncio
 from ...common.connection import PIConnectionManager
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
-from ...common.utils import convert_datetime_to_string
 from ...context import Context
+from datetime import datetime
 from pydantic import BaseModel, Field
-from typing import List, Literal
+from typing import List, Literal, Optional
 
 
-RESOURCE_DESCRIPTION = """List all available performance reports for a specific Amazon RDS instance.
+LIST_PERFORMANCE_REPORTS_DOCSTRING = """List all available performance reports for a specific Amazon RDS instance.
 
 <use_case>
 Use this resource to discover all available Performance Insights analysis reports for a specific RDS database instance.
@@ -76,29 +77,32 @@ class PerformanceReportSummary(BaseModel):
     """
 
     # Models the AnalysisReportSummaryTypeDef class which has no required fields
-    analysis_report_id: str | None = Field(
+    analysis_report_id: Optional[str] = Field(
         None, description='Unique identifier for the performance report'
     )
-    create_time: str | None = Field(None, description='Time when the report was created')
-    start_time: str | None = Field(None, description='Start time of the analysis period')
-    end_time: str | None = Field(None, description='End time of the analysis period')
-    status: Literal['RUNNING', 'SUCCEEDED', 'FAILED'] | None = None
+    create_time: Optional[datetime] = Field(None, description='Time when the report was created')
+    start_time: Optional[datetime] = Field(None, description='Start time of the analysis period')
+    end_time: Optional[datetime] = Field(None, description='End time of the analysis period')
+    status: Optional[Literal['RUNNING', 'SUCCEEDED', 'FAILED']] = Field(
+        None, description='Current status of the report'
+    )
 
 
-class PerformanceReportListModel(BaseModel):
-    """DB cluster list model."""
+class PerformanceReportList(BaseModel):
+    """Performance report list model for RDS instances."""
 
     reports: List[PerformanceReportSummary] = Field(
         default_factory=list, description='List of performance reports for a RDS instance'
     )
     count: int = Field(description='Total number of performance reports')
+    resource_uri: str = Field(description='The resource URI for the performance reports')
 
 
 @mcp.resource(
     uri='aws-rds://db-instance/{dbi_resource_identifier}/performance_report',
     name='ListPerformanceReports',
     mime_type='application/json',
-    description=RESOURCE_DESCRIPTION,
+    description=LIST_PERFORMANCE_REPORTS_DOCSTRING,
 )
 @handle_exceptions
 async def list_performance_reports(
@@ -106,37 +110,57 @@ async def list_performance_reports(
         ...,
         description='The resource identifier for the DB instance. This is the DbiResourceId returned by the ListDBInstances resource',
     ),
-) -> PerformanceReportListModel:
+) -> PerformanceReportList:
     """Retrieve all performance reports for a given DB instance.
 
     Args:
         dbi_resource_identifier: The DB instance resource identifier
 
     Returns:
-        JSON string with list of performance reports
+        Performance report list model containing reports and metadata
     """
+    if not dbi_resource_identifier:
+        raise ValueError('The DB instance resource identifier must be provided')
+
     pi_client = PIConnectionManager.get_connection()
     reports: List[PerformanceReportSummary] = []
+    next_token = None
 
-    # Only get up to max_items reports
-    response = pi_client.list_performance_analysis_reports(
-        ServiceType='RDS', Identifier=dbi_resource_identifier, MaxResults=Context.max_items()
-    )
+    while True and len(reports) < Context.max_items():
+        request_params = {
+            'ServiceType': 'RDS',
+            'Identifier': dbi_resource_identifier,
+        }
 
-    for report in response.get('AnalysisReports', []):
-        reports.append(
-            PerformanceReportSummary(
-                analysis_report_id=report.get('AnalysisReportId'),
-                create_time=convert_datetime_to_string(report.get('CreateTime')),
-                start_time=convert_datetime_to_string(report.get('StartTime')),
-                end_time=convert_datetime_to_string(report.get('EndTime')),
-                status=report.get('Status'),
-            )
+        if next_token:
+            request_params['NextToken'] = next_token
+
+        response = await asyncio.to_thread(
+            pi_client.list_performance_analysis_reports, **request_params
         )
 
-    result = PerformanceReportListModel(
+        if 'AnalysisReports' in response:
+            for report in response['AnalysisReports']:
+                reports.append(
+                    PerformanceReportSummary(
+                        analysis_report_id=report.get('AnalysisReportId'),
+                        create_time=report.get('CreateTime'),
+                        start_time=report.get('StartTime'),
+                        end_time=report.get('EndTime'),
+                        status=report.get('Status'),
+                    )
+                )
+
+        if 'NextToken' not in response:
+            break
+
+        next_token = response.get('NextToken')
+
+    resource_uri = f'aws-rds://db-instance/{dbi_resource_identifier}/performance_report'
+
+    result = PerformanceReportList(
         reports=reports,
         count=len(reports),
+        resource_uri=resource_uri,
     )
-
     return result

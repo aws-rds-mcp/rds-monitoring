@@ -342,10 +342,15 @@ async def find_slow_queries_and_wait_events(
     Raises:
         ValueError: If Performance Insights is not enabled or parameters are invalid
     """
+    start_time_value = start_time if isinstance(start_time, str) else None
+    end_time_value = end_time if isinstance(end_time, str) else None
+    period_seconds_value = period_in_seconds if isinstance(period_in_seconds, int) else 300
+
+    now = datetime.now()
     start = convert_string_to_datetime(
-        default=datetime.now() - timedelta(hours=1), date_string=start_time
+        default=now - timedelta(hours=1), date_string=start_time_value
     )
-    end = convert_string_to_datetime(default=datetime.now(), date_string=end_time)
+    end = convert_string_to_datetime(default=now, date_string=end_time_value)
 
     metric_queries = build_metric_queries(dimension, calculation, limit)
 
@@ -376,7 +381,7 @@ async def find_slow_queries_and_wait_events(
             'start': start.isoformat(),
             'end': end.isoformat(),
         },
-        period_seconds=period_in_seconds,
+        period_seconds=period_seconds_value,
         results=metric_results,
         count=len(metric_results),
     )

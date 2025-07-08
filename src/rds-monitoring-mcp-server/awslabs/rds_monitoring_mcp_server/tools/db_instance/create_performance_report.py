@@ -15,7 +15,7 @@
 """create_performance_report helpers and tool implementation."""
 
 from ...common.connection import PIConnectionManager
-from ...common.constants import MCP_SERVER_TAG
+from ...common.constants import MCP_SERVER_TAGS
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from ...common.utils import convert_string_to_datetime
@@ -52,12 +52,11 @@ TOOL_DESCRIPTION = """Create a performance report for an RDS instance.
     </use_case>
 
     <important_notes>
-    1. Currently ONLY available for RDS for PostgreSQL instances
-    2. The analysis period can range from 5 minutes to 6 days
-    3. There must be at least 24 hours of performance data before the analysis start time
-    4. Time parameters must be in ISO8601 format (e.g., '2025-06-01T00:00:00Z')
-    5. This operation will not be registered if the --read-only flag is True
-    6. For region, DB engine, and instance class support information, see Amazon RDS documentation
+    1. The analysis period can range from 5 minutes to 6 days
+    2. There must be at least 24 hours of performance data before the analysis start time
+    3. Time parameters must be in ISO8601 format (e.g., '2025-06-01T00:00:00Z')
+    4. This operation will fail if the --read-only flag is True
+    5. For region, DB engine, and instance class support information, see Amazon RDS documentation
     </important_notes>
 
     Args:
@@ -109,7 +108,7 @@ async def create_performance_report(
         None,
         description='The end of the time interval for the report (ISO8601 format). This must be within 5 minutes to 6 days of the start_time.',
     ),
-    tags: Optional[List[Dict[str, str]]] = Field(
+    tags: List[Dict[str, str]] = Field(
         [],
         description='Optional list of tags to apply to the new report. A tag indicating that this report was created by this MCP server is automatically added.',
     ),
@@ -138,16 +137,21 @@ async def create_performance_report(
             'You have configured this tool in readonly mode. To make this change you will have to update your configuration.'
         )
 
+    start_time_str = start_time if isinstance(start_time, str) else None
+    end_time_str = end_time if isinstance(end_time, str) else None
+
     start = convert_string_to_datetime(
-        default=datetime.now() - timedelta(days=5), date_string=start_time
+        default=datetime.now() - timedelta(days=5), date_string=start_time_str
     )
     end = convert_string_to_datetime(
-        default=datetime.now() - timedelta(days=2), date_string=end_time
+        default=datetime.now() - timedelta(days=2), date_string=end_time_str
     )
 
-    report_tags = [MCP_SERVER_TAG]
-    if tags:
-        for tag_item in tags:
+    report_tags = MCP_SERVER_TAGS
+    tag_list = tags if isinstance(tags, list) else []
+
+    if tag_list:
+        for tag_item in tag_list:
             for key, value in tag_item.items():
                 report_tags.append({'Key': key, 'Value': value})
 
@@ -162,4 +166,4 @@ async def create_performance_report(
 
     report_id = response.get('AnalysisReportId')
 
-    return REPORT_CREATION_SUCCESS_RESPONSE.format(report_id)
+    return REPORT_CREATION_SUCCESS_RESPONSE.format(report_id, dbi_resource_identifier)
