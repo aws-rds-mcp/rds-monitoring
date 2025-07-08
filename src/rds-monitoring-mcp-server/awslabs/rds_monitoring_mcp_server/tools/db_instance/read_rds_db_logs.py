@@ -146,23 +146,23 @@ async def read_rds_db_logs(
     Returns:
         str: A JSON string containing the log content, pagination marker, and pending data flag
     """
+    marker_value = marker if isinstance(marker, str) else '0'
+    number_of_lines_value = number_of_lines if isinstance(number_of_lines, int) else 100
+    pattern_value = pattern if isinstance(pattern, str) else None
+
     rds_client = RDSConnectionManager.get_connection()
 
     params = {
         'DBInstanceIdentifier': db_instance_identifier,
         'LogFileName': log_file_name,
+        'NumberOfLines': number_of_lines_value,
+        'Marker': marker_value,
     }
-
-    if number_of_lines is not None:
-        params['NumberOfLines'] = number_of_lines  # type: ignore
-
-    if marker:
-        params['Marker'] = marker
 
     response = rds_client.download_db_log_file_portion(**params)
 
     result = DBLogFileResponse(
-        log_content=preprocess_log_content(response.get('LogFileData', ''), pattern=pattern),
+        log_content=preprocess_log_content(response.get('LogFileData', ''), pattern=pattern_value),
         next_marker=response.get('NextToken', None),
         additional_data_pending=response.get('AdditionalDataPending', False),
     )

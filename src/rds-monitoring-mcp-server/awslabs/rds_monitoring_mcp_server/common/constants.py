@@ -18,9 +18,10 @@
 MCP_SERVER_VERSION = '0.1.0'
 
 # A tag attached to any resources created by the MCP server
-MCP_SERVER_TAG = {
-    'rds_monitoring_mcp_server_version': MCP_SERVER_VERSION,
-}
+MCP_SERVER_TAGS = [
+    {'Key': 'mcp_server_version', 'Value': MCP_SERVER_VERSION},
+    {'Key': 'created_by', 'Value': 'rds-control-plane-mcp-server'},
+]
 
 # Error Messages
 ERROR_AWS_API = 'AWS API error: {}'
