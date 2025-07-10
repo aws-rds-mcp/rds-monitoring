@@ -44,13 +44,13 @@ RESOURCE_DESCRIPTION = """List available metrics for a RDS cluster.
 
 resource_params = {
     'uri': 'aws-rds://db-cluster/{db_cluster_identifier}/available_metrics',
-    'name': 'ListClusterMetrics',
+    'name': 'ListRDSClusterMetrics',
     'description': RESOURCE_DESCRIPTION,
     'mime_type': 'text/plain',
 }
 
 tool_params = {
-    'name': 'ListRdsClusterMetrics',
+    'name': 'ListRDSClusterMetrics',
     'description': RESOURCE_DESCRIPTION,
 }
 

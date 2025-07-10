@@ -72,7 +72,7 @@ resource_params = {
 }
 
 tool_params = {
-    'name': 'RdsMetricsGuide',
+    'name': 'RDSMetricsGuide',
     'description': RESOURCE_DESCRIPTION,
 }
 

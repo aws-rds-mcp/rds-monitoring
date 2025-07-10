@@ -312,13 +312,13 @@ GET_CLUSTER_DETAIL_RESOURCE_DESCRIPTION = """Get detailed information about a sp
 
 list_clusters_resource_params = {
     'uri': 'aws-rds://db-cluster',
-    'name': 'ListClusters',
+    'name': 'ListRDSClusters',
     'mime_type': 'application/json',
     'description': LIST_CLUSTERS_RESOURCE_DESCRIPTION,
 }
 
 list_clusters_tool_params = {
-    'name': 'ListRdsClusters',
+    'name': 'ListRDSClusters',
     'description': LIST_CLUSTERS_RESOURCE_DESCRIPTION,
 }
 
@@ -346,13 +346,13 @@ async def list_clusters() -> List[ClusterOverview]:
 
 get_cluster_details_resource_params = {
     'uri': 'aws-rds://db-cluster/{db_cluster_identifier}',
-    'name': 'GetClusterDetails',
+    'name': 'GetRDSClusterDetails',
     'mime_type': 'application/json',
     'description': GET_CLUSTER_DETAIL_RESOURCE_DESCRIPTION,
 }
 
 get_cluster_details_tool_params = {
-    'name': 'GetRdsClusterDetails',
+    'name': 'GetRDSClusterDetails',
     'description': GET_CLUSTER_DETAIL_RESOURCE_DESCRIPTION,
 }
 

@@ -248,13 +248,13 @@ GET_INSTANCE_DETAIL_RESOURCE_DESCRIPTION = """Get detailed information about a s
 
 list_instances_resource_params = {
     'uri': 'aws-rds://db-instance',
-    'name': 'ListInstances',
+    'name': 'ListRDSInstances',
     'mime_type': 'application/json',
     'description': LIST_INSTANCES_RESOURCE_DESCRIPTION,
 }
 
 list_instances_tool_params = {
-    'name': 'ListRdsInstances',
+    'name': 'ListRDSInstances',
     'description': LIST_INSTANCES_RESOURCE_DESCRIPTION,
 }
 
@@ -284,13 +284,13 @@ async def list_instances() -> List[InstanceOverview]:
 
 get_instance_details_resource_params = {
     'uri': 'aws-rds://db-instance/{db_instance_identifier}',
-    'name': 'GetInstanceDetails',
+    'name': 'GetRDSInstanceDetails',
     'mime_type': 'application/json',
     'description': GET_INSTANCE_DETAIL_RESOURCE_DESCRIPTION,
 }
 
 get_instance_details_tool_params = {
-    'name': 'GetRdsInstanceDetails',
+    'name': 'GetRDSInstanceDetails',
     'description': GET_INSTANCE_DETAIL_RESOURCE_DESCRIPTION,
 }
 

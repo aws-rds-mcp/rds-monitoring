@@ -95,7 +95,7 @@ resource_params = {
 }
 
 tool_params = {
-    'name': 'ListRdsDbLogFiles',
+    'name': 'ListDBLogFiles',
     'description': RESOURCE_DESCRIPTION,
 }
 

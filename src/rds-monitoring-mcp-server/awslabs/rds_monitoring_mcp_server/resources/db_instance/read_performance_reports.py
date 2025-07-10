@@ -86,7 +86,7 @@ resource_params = {
 }
 
 tool_params = {
-    'name': 'ReadRdsPerformanceReport',
+    'name': 'ReadPerformanceReport',
     'description': RESOURCE_DESCRIPTION,
 }
 

@@ -105,7 +105,7 @@ resource_params = {
 }
 
 tool_params = {
-    'name': 'ListRdsPerformanceReports',
+    'name': 'ListPerformanceReports',
     'description': LIST_PERFORMANCE_REPORTS_DOCSTRING,
 }
 

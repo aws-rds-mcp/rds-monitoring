@@ -57,13 +57,13 @@ RESOURCE_DESCRIPTION = """List available metrics for a specific Amazon RDS insta
 
 resource_params = {
     'uri': 'aws-rds://db-instance/{db_instance_identifier}/available_metrics',
-    'name': 'ListInstanceMetrics',
+    'name': 'ListRDSInstanceMetrics',
     'description': RESOURCE_DESCRIPTION,
     'mime_type': 'text/plain',
 }
 
 tool_params = {
-    'name': 'ListRdsInstanceMetrics',
+    'name': 'ListRDSInstanceMetrics',
     'description': RESOURCE_DESCRIPTION,
 }
 
