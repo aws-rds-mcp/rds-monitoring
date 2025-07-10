@@ -14,8 +14,7 @@
 
 """aws-rds://metrics_guide resource implementation."""
 
-from ...common.decorators import handle_exceptions
-from ...common.server import mcp
+from ...common.decorators import conditional_mcp_register, handle_exceptions
 from loguru import logger
 from pathlib import Path
 
@@ -65,12 +64,20 @@ RESOURCE_DESCRIPTION = """Provide a link to the Amazon RDS Metrics Guide.
     """
 
 
-@mcp.resource(
-    uri='aws-rds://metrics_guide',
-    name='RDSMetricGuide',
-    description=RESOURCE_DESCRIPTION,
-    mime_type='text/plain',
-)
+resource_params = {
+    'uri': 'aws-rds://metrics_guide',
+    'name': 'RDSMetricGuide',
+    'description': RESOURCE_DESCRIPTION,
+    'mime_type': 'text/plain',
+}
+
+tool_params = {
+    'name': 'RdsMetricsGuide',
+    'description': RESOURCE_DESCRIPTION,
+}
+
+
+@conditional_mcp_register(resource_params, tool_params)
 @handle_exceptions
 async def metrics_guide_resource() -> str:
     """Serve the Amazon RDS Metrics Guide markdown file.

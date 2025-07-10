@@ -15,7 +15,7 @@
 """aws-rds://db-cluster data models and resource implementation."""
 
 from ...common.connection import RDSConnectionManager
-from ...common.server import mcp
+from ...common.decorators import conditional_mcp_register
 from ...context import Context
 from loguru import logger
 from mypy_boto3_rds.type_defs import DBClusterTypeDef
@@ -310,12 +310,20 @@ GET_CLUSTER_DETAIL_RESOURCE_DESCRIPTION = """Get detailed information about a sp
 # MCP Resources
 
 
-@mcp.resource(
-    uri='aws-rds://db-cluster',
-    name='ListClusters',
-    mime_type='application/json',
-    description=LIST_CLUSTERS_RESOURCE_DESCRIPTION,
-)
+list_clusters_resource_params = {
+    'uri': 'aws-rds://db-cluster',
+    'name': 'ListClusters',
+    'mime_type': 'application/json',
+    'description': LIST_CLUSTERS_RESOURCE_DESCRIPTION,
+}
+
+list_clusters_tool_params = {
+    'name': 'ListRdsClusters',
+    'description': LIST_CLUSTERS_RESOURCE_DESCRIPTION,
+}
+
+
+@conditional_mcp_register(list_clusters_resource_params, list_clusters_tool_params)
 async def list_clusters() -> List[ClusterOverview]:
     """Retrieve a list of all RDS clusters available in the account.
 
@@ -336,12 +344,20 @@ async def list_clusters() -> List[ClusterOverview]:
     return clusters
 
 
-@mcp.resource(
-    uri='aws-rds://db-cluster/{db_cluster_identifier}',
-    name='GetClusterDetails',
-    mime_type='application/json',
-    description=GET_CLUSTER_DETAIL_RESOURCE_DESCRIPTION,
-)
+get_cluster_details_resource_params = {
+    'uri': 'aws-rds://db-cluster/{db_cluster_identifier}',
+    'name': 'GetClusterDetails',
+    'mime_type': 'application/json',
+    'description': GET_CLUSTER_DETAIL_RESOURCE_DESCRIPTION,
+}
+
+get_cluster_details_tool_params = {
+    'name': 'GetRdsClusterDetails',
+    'description': GET_CLUSTER_DETAIL_RESOURCE_DESCRIPTION,
+}
+
+
+@conditional_mcp_register(get_cluster_details_resource_params, get_cluster_details_tool_params)
 async def get_cluster_details(db_cluster_identifier: str) -> ClusterDetails:
     """Get detailed information about a specific RDS cluster.
 

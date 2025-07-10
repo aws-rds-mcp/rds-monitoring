@@ -15,8 +15,7 @@
 """aws-rds://db-instance/{dbi_resource_identifier}/performance_report/{report_id} resource implementation."""
 
 from ...common.connection import PIConnectionManager
-from ...common.decorators import handle_exceptions
-from ...common.server import mcp
+from ...common.decorators import conditional_mcp_register, handle_exceptions
 from datetime import datetime
 from loguru import logger
 from pydantic import BaseModel, Field
@@ -79,12 +78,20 @@ class AnalysisReport(BaseModel):
     Insights: List[Dict[str, Any]] = []
 
 
-@mcp.resource(
-    uri='aws-rds://db-instance/{dbi_resource_identifier}/performance_report/{report_id}',
-    name='ReadPerformanceReport',
-    mime_type='application/json',
-    description=RESOURCE_DESCRIPTION,
-)
+resource_params = {
+    'uri': 'aws-rds://db-instance/{dbi_resource_identifier}/performance_report/{report_id}',
+    'name': 'ReadPerformanceReport',
+    'mime_type': 'application/json',
+    'description': RESOURCE_DESCRIPTION,
+}
+
+tool_params = {
+    'name': 'ReadRdsPerformanceReport',
+    'description': RESOURCE_DESCRIPTION,
+}
+
+
+@conditional_mcp_register(resource_params, tool_params)
 @handle_exceptions
 async def read_performance_report(
     dbi_resource_identifier: str = Field(

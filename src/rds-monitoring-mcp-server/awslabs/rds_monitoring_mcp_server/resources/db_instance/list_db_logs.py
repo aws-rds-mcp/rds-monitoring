@@ -15,8 +15,7 @@
 """aws-rds://db-instance/{db_instance_identifier}/log data models and resource implementation."""
 
 from ...common.connection import RDSConnectionManager
-from ...common.decorators import handle_exceptions
-from ...common.server import mcp
+from ...common.decorators import conditional_mcp_register, handle_exceptions
 from ...context import Context
 from datetime import datetime
 from pydantic import BaseModel, Field
@@ -88,12 +87,20 @@ class DBLogFileListModel(BaseModel):
     )
 
 
-@mcp.resource(
-    uri='aws-rds://db-instance/{db_instance_identifier}/log',
-    name='ListDBLogFiles',
-    mime_type='application/json',
-    description=RESOURCE_DESCRIPTION,
-)
+resource_params = {
+    'uri': 'aws-rds://db-instance/{db_instance_identifier}/log',
+    'name': 'ListDBLogFiles',
+    'mime_type': 'application/json',
+    'description': RESOURCE_DESCRIPTION,
+}
+
+tool_params = {
+    'name': 'ListRdsDbLogFiles',
+    'description': RESOURCE_DESCRIPTION,
+}
+
+
+@conditional_mcp_register(resource_params, tool_params)
 @handle_exceptions
 async def list_db_log_files(
     db_instance_identifier: str = Field(..., description='The identifier for the DB instance'),

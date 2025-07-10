@@ -22,17 +22,22 @@ class Context:
 
     _readonly = True
     _max_items = 100
+    _register_resource_as_tool = False
 
     @classmethod
-    def initialize(cls, readonly: bool = True, max_items: int = 100):
+    def initialize(
+        cls, readonly: bool = True, max_items: int = 100, register_resource_as_tool: bool = False
+    ):
         """Initialize the context.
 
         Args:
             readonly (bool): Whether to run in readonly mode. Defaults to True.
             max_items (int): Maximum number of items returned from API responses. Defaults to 100.
+            register_resource_as_tool (bool): Whether to register resources as tools. Defaults to False.
         """
         cls._readonly = readonly
         cls._max_items = max_items
+        cls._register_resource_as_tool = register_resource_as_tool
 
     @classmethod
     def readonly_mode(cls) -> bool:
@@ -51,6 +56,15 @@ class Context:
             The maximum number of items returned from API responses
         """
         return cls._max_items
+
+    @classmethod
+    def register_resource_as_tool(cls) -> bool:
+        """Check if resources should be registered as tools.
+
+        Returns:
+            True if resources should be registered as tools, False otherwise
+        """
+        return cls._register_resource_as_tool
 
     @classmethod
     def get_pagination_config(cls) -> PaginatorConfigTypeDef:

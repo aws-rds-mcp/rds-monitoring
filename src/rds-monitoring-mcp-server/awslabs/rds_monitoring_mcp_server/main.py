@@ -18,17 +18,6 @@ import argparse
 from awslabs.rds_monitoring_mcp_server.common.constants import MCP_SERVER_VERSION
 from awslabs.rds_monitoring_mcp_server.common.server import mcp
 from awslabs.rds_monitoring_mcp_server.context import Context
-
-# Import resources and tools for side effects to register them
-from awslabs.rds_monitoring_mcp_server.resources import (
-    db_cluster as db_cluster_resources,  # noqa: F401
-)
-from awslabs.rds_monitoring_mcp_server.resources import (
-    db_instance as db_instance_resources,  # noqa: F401
-)
-from awslabs.rds_monitoring_mcp_server.resources import general as general_resources  # noqa: F401
-from awslabs.rds_monitoring_mcp_server.tools import db_instance as db_instance_tools  # noqa: F401
-from awslabs.rds_monitoring_mcp_server.tools import general as general_tools  # noqa: F401
 from loguru import logger
 
 
@@ -51,11 +40,20 @@ def main():
         action=argparse.BooleanOptionalAction,
         help='Prevents the MCP server from performing mutating operations',
     )
+    parser.add_argument(
+        '--register-resources-as-tools',
+        action='store_true',
+        help='Register resources as tools for MCP clients that do not support resources',
+    )
 
     args = parser.parse_args()
 
     mcp.settings.port = args.port
-    Context.initialize(args.readonly, args.max_items)
+    Context.initialize(args.readonly, args.max_items, args.register_resources_as_tools)
+
+    # Import resources and tools for side effects to register them, this is done after Context has been initialized
+    import awslabs.rds_monitoring_mcp_server.resources  # noqa: F401
+    import awslabs.rds_monitoring_mcp_server.tools  # noqa: F401
 
     logger.info(f'Starting RDS Monitoring Plane MCP Server v{MCP_SERVER_VERSION}')
 
