@@ -15,7 +15,7 @@
 """aws-rds://db-instance data models and resource implementation."""
 
 from ...common.connection import RDSConnectionManager
-from ...common.server import mcp
+from ...common.decorators import conditional_mcp_register
 from ...context import Context
 from loguru import logger
 from pydantic import BaseModel, Field
@@ -246,12 +246,20 @@ GET_INSTANCE_DETAIL_RESOURCE_DESCRIPTION = """Get detailed information about a s
     """
 
 
-@mcp.resource(
-    uri='aws-rds://db-instance',
-    name='ListInstances',
-    mime_type='application/json',
-    description=LIST_INSTANCES_RESOURCE_DESCRIPTION,
-)
+list_instances_resource_params = {
+    'uri': 'aws-rds://db-instance',
+    'name': 'ListRDSInstances',
+    'mime_type': 'application/json',
+    'description': LIST_INSTANCES_RESOURCE_DESCRIPTION,
+}
+
+list_instances_tool_params = {
+    'name': 'ListRDSInstances',
+    'description': LIST_INSTANCES_RESOURCE_DESCRIPTION,
+}
+
+
+@conditional_mcp_register(list_instances_resource_params, list_instances_tool_params)
 async def list_instances() -> List[InstanceOverview]:
     """Retrieve a list of all RDS instances available in the account.
 
@@ -274,12 +282,20 @@ async def list_instances() -> List[InstanceOverview]:
     return instances
 
 
-@mcp.resource(
-    uri='aws-rds://db-instance/{db_instance_identifier}',
-    name='GetInstanceDetails',
-    mime_type='application/json',
-    description=GET_INSTANCE_DETAIL_RESOURCE_DESCRIPTION,
-)
+get_instance_details_resource_params = {
+    'uri': 'aws-rds://db-instance/{db_instance_identifier}',
+    'name': 'GetRDSInstanceDetails',
+    'mime_type': 'application/json',
+    'description': GET_INSTANCE_DETAIL_RESOURCE_DESCRIPTION,
+}
+
+get_instance_details_tool_params = {
+    'name': 'GetRDSInstanceDetails',
+    'description': GET_INSTANCE_DETAIL_RESOURCE_DESCRIPTION,
+}
+
+
+@conditional_mcp_register(get_instance_details_resource_params, get_instance_details_tool_params)
 async def get_instance_details(db_instance_identifier: str) -> InstanceDetails:
     """Get detailed information about a specific RDS instance.
 

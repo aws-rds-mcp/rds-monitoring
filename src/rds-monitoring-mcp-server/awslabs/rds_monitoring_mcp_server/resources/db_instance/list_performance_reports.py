@@ -16,8 +16,7 @@
 
 import asyncio
 from ...common.connection import PIConnectionManager
-from ...common.decorators import handle_exceptions
-from ...common.server import mcp
+from ...common.decorators import conditional_mcp_register, handle_exceptions
 from ...context import Context
 from datetime import datetime
 from pydantic import BaseModel, Field
@@ -98,12 +97,20 @@ class PerformanceReportList(BaseModel):
     resource_uri: str = Field(description='The resource URI for the performance reports')
 
 
-@mcp.resource(
-    uri='aws-rds://db-instance/{dbi_resource_identifier}/performance_report',
-    name='ListPerformanceReports',
-    mime_type='application/json',
-    description=LIST_PERFORMANCE_REPORTS_DOCSTRING,
-)
+resource_params = {
+    'uri': 'aws-rds://db-instance/{dbi_resource_identifier}/performance_report',
+    'name': 'ListPerformanceReports',
+    'mime_type': 'application/json',
+    'description': LIST_PERFORMANCE_REPORTS_DOCSTRING,
+}
+
+tool_params = {
+    'name': 'ListPerformanceReports',
+    'description': LIST_PERFORMANCE_REPORTS_DOCSTRING,
+}
+
+
+@conditional_mcp_register(resource_params, tool_params)
 @handle_exceptions
 async def list_performance_reports(
     dbi_resource_identifier: str = Field(

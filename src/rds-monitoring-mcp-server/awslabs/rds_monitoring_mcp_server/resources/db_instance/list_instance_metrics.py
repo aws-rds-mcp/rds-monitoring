@@ -14,9 +14,8 @@
 
 """aws-rds://db-instance/{db_instance_identifier}/available_metrics data models and resource implementation."""
 
-from ...common.decorators import handle_exceptions
+from ...common.decorators import conditional_mcp_register, handle_exceptions
 from ...common.list_metrics import list_metrics
-from ...common.server import mcp
 from typing import List
 
 
@@ -56,12 +55,20 @@ RESOURCE_DESCRIPTION = """List available metrics for a specific Amazon RDS insta
     """
 
 
-@mcp.resource(
-    uri='aws-rds://db-instance/{db_instance_identifier}/available_metrics',
-    name='ListInstanceMetrics',
-    description=RESOURCE_DESCRIPTION,
-    mime_type='text/plain',
-)
+resource_params = {
+    'uri': 'aws-rds://db-instance/{db_instance_identifier}/available_metrics',
+    'name': 'ListRDSInstanceMetrics',
+    'description': RESOURCE_DESCRIPTION,
+    'mime_type': 'text/plain',
+}
+
+tool_params = {
+    'name': 'ListRDSInstanceMetrics',
+    'description': RESOURCE_DESCRIPTION,
+}
+
+
+@conditional_mcp_register(resource_params, tool_params)
 @handle_exceptions
 async def list_instance_metrics(db_instance_identifier: str) -> List[str]:
     """List available metrics for an Amazon RDS instance.
