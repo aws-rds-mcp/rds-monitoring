@@ -19,9 +19,11 @@
 from .describe_rds_events import describe_rds_events
 from .describe_rds_performance_metrics import describe_rds_performance_metrics
 from .describe_rds_recommendations import describe_rds_recommendations
+from .get_metric_statistics import get_metric_statistics
 
 __all__ = [
     'describe_rds_events',
     'describe_rds_performance_metrics',
     'describe_rds_recommendations',
+    'get_metric_statistics',
 ]

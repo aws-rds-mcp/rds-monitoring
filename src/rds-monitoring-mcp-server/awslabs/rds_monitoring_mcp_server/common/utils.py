@@ -14,9 +14,44 @@
 
 """Utility functions for the RDS Monitoring MCP Server."""
 
+from ..context import Context
+from botocore.client import BaseClient
 from datetime import datetime
 from loguru import logger
-from typing import Any, Optional
+from typing import Any, Callable, Dict, List, Optional, TypeVar
+
+
+T = TypeVar('T', bound=object)
+
+
+def handle_paginated_aws_api_call(
+    client: BaseClient,
+    paginator_name: str,
+    operation_parameters: Dict[str, Any],
+    format_function: Callable[[Any], T],
+    result_key: str,
+) -> List[T]:
+    """Fetch all results using AWS API pagination.
+
+    Args:
+        client: Boto3 client to use for the API call
+        paginator_name: Name of the paginator to use (e.g. 'describe_db_clusters')
+        operation_parameters: Parameters to pass to the paginator
+        format_function: Function to format each item in the result
+        result_key: Key in the response that contains the list of items
+
+    Returns:
+        List of formatted results
+    """
+    results = []
+    paginator = client.get_paginator(paginator_name)
+    operation_parameters['PaginationConfig'] = Context.get_pagination_config()
+    page_iterator = paginator.paginate(**operation_parameters)
+    for page in page_iterator:
+        for item in page.get(result_key, []):
+            results.append(format_function(item))
+
+    return results
 
 
 def convert_datetime_to_string(obj: Any) -> Any:
