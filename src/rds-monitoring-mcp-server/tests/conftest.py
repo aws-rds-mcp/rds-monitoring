@@ -73,3 +73,12 @@ def mock_all_clients(mock_rds_client, mock_pi_client, mock_cloudwatch_client):
         tuple: (mock_rds_client, mock_pi_client, mock_cloudwatch_client)
     """
     return (mock_rds_client, mock_pi_client, mock_cloudwatch_client)
+
+
+@pytest.fixture
+def mock_handle_paginated_call():
+    """Fixture for mocking handle_paginated_aws_api_call."""
+    with patch(
+        'awslabs.rds_monitoring_mcp_server.common.utils.handle_paginated_aws_api_call'
+    ) as mock:
+        yield mock
