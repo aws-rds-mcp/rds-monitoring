@@ -12,18 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""read_rds_db_logs data models, helpers and tool implementation."""
+"""read_db_log_file data models, helpers and tool implementation."""
 
-import json
+import re
 from ...common.connection import RDSConnectionManager
-from ...common.decorators import handle_exceptions
+from ...common.decorators.handle_exceptions import handle_exceptions
 from ...common.server import mcp
-from mcp.types import ToolAnnotations
+from mcp.server.fastmcp import Context as FastMCPContext
 from pydantic import BaseModel, Field
 from typing import Optional
 
 
-# Data Models
+TOOL_DESCRIPTION = """Read database log files from RDS instances.
+
+This tool retrieves contents of database log files from Amazon RDS instances, allowing you to download log file portions, search for specific patterns, and paginate through large log files to troubleshoot database issues.
+"""
 
 
 class DBLogFileResponse(BaseModel):
@@ -49,68 +52,47 @@ class DBLogFileResponse(BaseModel):
     )
 
 
-# Helper Functions
-
-
-def preprocess_log_content(log_file_content: str, pattern: Optional[str] = None) -> str:
+async def preprocess_log_content(
+    log_file_content: str,
+    pattern: Optional[str] = None,
+    use_regex: bool = False,
+    ctx: Optional[FastMCPContext] = None,
+) -> str:
     """Preprocess and filter the log content before returning it.
 
-    This function processes the raw log file content and applies any specified pattern filtering.
-    If a pattern is provided, only lines containing that pattern will be included in the result.
+    This function processes the raw log file content and applies pattern filtering.
+    If a pattern is provided, only lines matching that pattern will be included.
 
     Args:
         log_file_content: Raw log content from the RDS instance
-        pattern: Optional filter pattern; when provided, only lines containing this pattern are returned
+        pattern: Optional filter pattern; when provided, only matching lines are returned
+        use_regex: Whether to treat the pattern as a regular expression (default: False)
+        ctx: Optional FastMCP context for error reporting
 
     Returns:
-        str: The processed log content, potentially filtered by the pattern
+        str: The processed log content, filtered by the pattern
     """
     if not pattern or not log_file_content:
         return log_file_content
 
-    filtered_lines = []
-    for line in log_file_content.splitlines():
-        if pattern in line:
-            filtered_lines.append(line)
-
-    return '\n'.join(filtered_lines)
-
-
-# MCP Tool Args
-
-TOOL_DESCRIPTION = """Read database log files from RDS instances.
-
-This tool retrieves contents of database log files from Amazon RDS instances.
-It allows you to download log file portions, search for specific patterns,
-and paginate through large log files.
-
-<use_case>
-Use this tool to troubleshoot database issues by examining log files for errors,
-warnings, or specific events. Log analysis can help identify performance problems,
-configuration issues, failed operations, and security concerns.
-</use_case>
-
-<important_notes>
-1. Returns up to 1MB of log content per call due to API limitations
-2. Use the marker parameter for pagination through large log files
-3. The pattern parameter can filter logs to show only relevant entries
-4. For error logs, "error/postgresql.log" or "error/log" are common file names
-5. Use list_db_logs resource first to identify available log files
-6. Log file content may contain sensitive information like connection details
-</important_notes>
-"""
+    if use_regex:
+        try:
+            regex = re.compile(pattern)
+            return '\n'.join(line for line in log_file_content.splitlines() if regex.search(line))
+        except re.error as e:
+            if ctx:
+                await ctx.error(f'Regex Error: {str(e)}')
+            return log_file_content
+    else:
+        return '\n'.join(line for line in log_file_content.splitlines() if pattern in line)
 
 
 @mcp.tool(
     name='ReadDBLogFiles',
     description=TOOL_DESCRIPTION,
-    annotations=ToolAnnotations(
-        title='Read RDS DB Log Files',
-        readOnlyHint=True,
-    ),
 )
 @handle_exceptions
-async def read_rds_db_logs(
+async def read_db_log_file(
     db_instance_identifier: str = Field(
         ...,
         description='The identifier of the RDS instance (DBInstanceIdentifier, not DbiResourceId) to read logs from.',
@@ -119,11 +101,11 @@ async def read_rds_db_logs(
         ...,
         description='The name of the log file to read (e.g., "error/postgresql.log").',
     ),
-    marker: Optional[str] = Field(
+    marker: str = Field(
         '0',
         description='The pagination marker returned by a previous call to this tool for reading the next portion of a log file. Set to the first page by default.',
     ),
-    number_of_lines: Optional[int] = Field(
+    number_of_lines: int = Field(
         100,
         description='The number of lines to read from the log file (default: 100).',
         ge=1,
@@ -131,9 +113,14 @@ async def read_rds_db_logs(
     ),
     pattern: Optional[str] = Field(
         None,
-        description='The pattern to filter log entries. Only returns lines that contain the specified pattern string.',
+        description='The pattern to filter log entries. By default, performs simple substring matching. Set use_regex=True to use regular expressions.',
     ),
-) -> str:
+    use_regex: bool = Field(
+        False,
+        description='Whether to treat the pattern as a regular expression. If False (default), performs simple substring matching.',
+    ),
+    ctx: Optional[FastMCPContext] = None,
+) -> DBLogFileResponse:
     """Retrieve RDS database log file contents.
 
     Args:
@@ -142,30 +129,33 @@ async def read_rds_db_logs(
         marker: The pagination marker from a previous call (set to '0' for first page)
         number_of_lines: Number of lines to retrieve (1-9999)
         pattern: Optional filter pattern to only return matching lines
+        use_regex: Whether to treat the pattern as a regular expression (default: False)
+        ctx: MCP context for logging and state management
 
     Returns:
-        str: A JSON string containing the log content, pagination marker, and pending data flag
+        DBLogFileResponse: A data model containing the log content, pagination marker, and pending data flag
     """
-    marker_value = marker if isinstance(marker, str) else '0'
-    number_of_lines_value = number_of_lines if isinstance(number_of_lines, int) else 100
-    pattern_value = pattern if isinstance(pattern, str) else None
-
     rds_client = RDSConnectionManager.get_connection()
 
     params = {
         'DBInstanceIdentifier': db_instance_identifier,
         'LogFileName': log_file_name,
-        'NumberOfLines': number_of_lines_value,
-        'Marker': marker_value,
+        'NumberOfLines': number_of_lines,  # No need to check for None
     }
+
+    if marker:
+        params['Marker'] = marker
 
     response = rds_client.download_db_log_file_portion(**params)
 
+    log_content = await preprocess_log_content(
+        response.get('LogFileData', ''), pattern=pattern, use_regex=use_regex, ctx=ctx
+    )
+
     result = DBLogFileResponse(
-        log_content=preprocess_log_content(response.get('LogFileData', ''), pattern=pattern_value),
-        next_marker=response.get('NextToken', None),
+        log_content=log_content,
+        next_marker=response.get('Marker', None),
         additional_data_pending=response.get('AdditionalDataPending', False),
     )
 
-    serializable_dict = result.model_dump()
-    return json.dumps(serializable_dict, indent=2)
+    return result

@@ -14,9 +14,8 @@
 
 """find_slow_queries_and_wait_events data models, helpers and tool implementation."""
 
-import json
 from ...common.connection import PIConnectionManager
-from ...common.decorators import handle_exceptions
+from ...common.decorators.handle_exceptions import handle_exceptions
 from ...common.server import mcp
 from ...common.utils import convert_string_to_datetime
 from datetime import datetime, timedelta
@@ -112,59 +111,17 @@ def build_metric_queries(
     ]
 
 
-def fetch_full_sql_text(
-    pi_client: Any,
-    dbi_resource_identifier: str,
-    dimension: str,
-    dimension_key: str,
-    dimension_value: str,
-) -> str:
-    """Fetch the full SQL text for a tokenized SQL statement.
-
-    Args:
-        pi_client: The Performance Insights client
-        dbi_resource_identifier: The DbiResourceId of the RDS instance
-        dimension: The dimension group ('db.sql_tokenized')
-        dimension_key: The SQL statement ID
-        dimension_value: The current tokenized value
-
-    Returns:
-        The full SQL text if available, otherwise the original tokenized value
-    """
-    try:
-        sql_details = pi_client.get_dimension_key_details(
-            ServiceType='RDS',
-            Identifier=dbi_resource_identifier,
-            Group=dimension,
-            GroupIdentifier=dimension_key,
-            RequestedDimensions=[dimension_key],
-        )
-
-        if 'Dimensions' in sql_details:
-            return sql_details['Dimensions'].get(dimension_key, dimension_value)
-
-        return dimension_value
-
-    except Exception as e:
-        logger.warning(f'Could not retrieve full SQL for {dimension_key}: {e}')
-        return dimension_value
-
-
 def process_metric_results(
     metric_list: List[Dict[str, Any]],
     dimension: str,
-    full_sql_statement: bool,
-    pi_client: Any,
-    dbi_resource_identifier: str,
+    limit: int,
 ) -> List[MetricResult]:
     """Process raw metric results into structured MetricResult objects.
 
     Args:
         metric_list: Raw metric results from Performance Insights API
         dimension: The dimension used for grouping
-        full_sql_statement: Whether to fetch full SQL text
-        pi_client: The Performance Insights client
-        dbi_resource_identifier: The DbiResourceId
+        limit: Maximum number of results to return
 
     Returns:
         List of processed MetricResult objects
@@ -174,37 +131,34 @@ def process_metric_results(
     for metric_result in metric_list:
         dimension_details = metric_result.get('Key', {}).get('Dimensions', {})
 
-        if dimension == 'db.sql_tokenized' and full_sql_statement:
-            updated_dimensions = {}
-            for dimension_key, dimension_value in dimension_details.items():
-                full_text = fetch_full_sql_text(
-                    pi_client,
-                    dbi_resource_identifier,
-                    dimension,
-                    dimension_key,
-                    dimension_value,
-                )
-                updated_dimensions[dimension_key] = full_text
-            dimension_details = updated_dimensions
+        # Skip results with empty dimensions when we're looking for grouped results
+        if not dimension_details:
+            continue
 
+        # Filter datapoints to only include non-zero values
         datapoints = []
         raw_datapoints = metric_result.get('DataPoints', [])
 
         for dp in raw_datapoints:
-            timestamp = dp['Timestamp']
-            if isinstance(timestamp, datetime):
-                timestamp = timestamp.isoformat()
+            value = dp.get('Value', 0)
+            # Only include datapoints with non-zero values
+            if value > 0:
+                timestamp = dp['Timestamp']
+                if isinstance(timestamp, datetime):
+                    timestamp = timestamp.isoformat()
 
-            datapoints.append(
-                MetricDataPoint(
-                    timestamp=timestamp,
-                    value=dp['Value'],
+                datapoints.append(
+                    MetricDataPoint(
+                        timestamp=timestamp,
+                        value=value,
+                    )
                 )
-            )
 
-        average_value = None
-        if datapoints:
-            average_value = sum(dp.value for dp in datapoints) / len(datapoints)
+        # Only include results that have non-zero datapoints
+        if not datapoints:
+            continue
+
+        average_value = sum(dp.value for dp in datapoints) / len(datapoints)
 
         result = MetricResult(
             metric_name=metric_result.get('Key', {}).get('Metric', ''),
@@ -215,63 +169,21 @@ def process_metric_results(
 
         results.append(result)
 
+    # Sort by average value descending and apply limit
     results.sort(key=lambda x: x.average_value or 0, reverse=True)
-
-    return results
+    return results[:limit]
 
 
 # MCP Tool Args
 
 TOOL_DESCRIPTION = """Find slow queries and wait events in RDS databases.
 
-    This tool analyzes RDS Performance Insights data to identify slow-running queries and
-    wait events that are consuming database resources. It uses the DBLoad metric to measure
-    session activity and provides insights into performance bottlenecks.
-
-    <use_case>
-    Use this tool to troubleshoot database performance issues by identifying:
-    - Which SQL queries are consuming the most database resources
-    - What wait events are causing delays in query execution
-    - Patterns of database load over time to understand performance trends
-    - Specific queries that need optimization or tuning
-    </use_case>
+    Use this tool to troubleshoot database performance issues by identifying which SQL queries are consuming the most database resources and wait events are causing delays in query execution.
 
     <important_notes>
-    1. Requires Performance Insights to be enabled on the RDS instance. Use the aws-rds://db-instance/{db_instance_identifier} to check this. Getting a NotAuthorizedException means that PI might not be enabled on the instance.
-    2. The DBLoad metric shows the number of active sessions for the database engine
-    3. Wait events indicate where database work is being impeded (e.g., I/O, locks, CPU)
-    4. Top SQL dimension shows which queries contribute most to database load
-    6. By default returns tokenized SQL for security; set full_sql_statement=True for full text
-    7. SQL statements larger than 500 bytes will be truncated in the response
+        1. Requires Performance Insights to be enabled on the RDS instance. Getting a NotAuthorizedException means that PI might not be enabled on the instance.
+        2. SQL statements larger than 500 bytes will be truncated in the response
     </important_notes>
-
-    Args:
-        dbi_resource_identifier: The DbiResourceId of the RDS instance (e.g., db-EXAMPLEDBIID)
-        dimension: The dimension to group by ('db.wait_event' for wait events or 'db.sql_tokenized' for SQL queries)
-        calculation: The aggregate calculation method ('avg', 'min', 'max', or 'sum')
-        start_time: The beginning of the time interval (ISO8601 format)
-        end_time: The end of the time interval (ISO8601 format)
-        period_in_seconds: The granularity of data points (1, 60, 300, 3600, or 86400 seconds)
-        limit: Maximum number of items to return for the dimension group (default: 10)
-        full_sql_statement: Whether to retrieve full SQL text instead of tokenized (default: False)
-
-    Returns:
-        str: A JSON string containing the slow queries or wait events analysis
-
-    <examples>
-    Example usage scenarios:
-    1. Identify top wait events during a performance issue:
-       - Set dimension to 'db.wait_event'
-       - Analyze which wait types are causing delays
-
-    2. Find slow queries consuming resources:
-       - Set dimension to 'db.sql_tokenized'
-       - Review the top SQL statements by load
-
-    3. Correlate wait events with specific queries:
-       - Run the tool twice with different dimensions
-       - Compare timestamps to identify problematic query patterns
-    </examples>
 """
 
 
@@ -315,11 +227,7 @@ async def find_slow_queries_and_wait_events(
         ge=1,
         le=50,
     ),
-    full_sql_statement: bool = Field(
-        False,
-        description='Whether to retrieve full SQL text instead of tokenized. Set to True to see complete SQL statements',
-    ),
-) -> str:
+) -> SlowQueriesAndWaitEventsResponse:
     """Find slow queries and wait events in RDS databases using Performance Insights.
 
     This function queries RDS Performance Insights to identify top SQL queries or wait events
@@ -334,7 +242,7 @@ async def find_slow_queries_and_wait_events(
         end_time: The end of the time interval (ISO8601 format)
         period_in_seconds: The granularity of data points
         limit: Maximum number of items to return
-        full_sql_statement: Whether to retrieve full SQL text
+
 
     Returns:
         str: A JSON string containing the analysis results
@@ -368,12 +276,10 @@ async def find_slow_queries_and_wait_events(
     metric_results = process_metric_results(
         metric_list=response.get('MetricList', []),
         dimension=dimension,
-        full_sql_statement=full_sql_statement,
-        pi_client=pi_client,
-        dbi_resource_identifier=dbi_resource_identifier,
+        limit=limit,
     )
 
-    response_model = SlowQueriesAndWaitEventsResponse(
+    result = SlowQueriesAndWaitEventsResponse(
         resource_identifier=dbi_resource_identifier,
         dimension=dimension,
         calculation=calculation,
@@ -391,5 +297,4 @@ async def find_slow_queries_and_wait_events(
         f'from {start.isoformat()} to {end.isoformat()}'
     )
 
-    serializable_dict = response_model.model_dump()
-    return json.dumps(serializable_dict, indent=2)
+    return result

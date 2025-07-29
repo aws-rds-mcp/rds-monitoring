@@ -15,8 +15,10 @@
 """aws-rds://db-instance/{db_instance_identifier}/log data models and resource implementation."""
 
 from ...common.connection import RDSConnectionManager
-from ...common.decorators import conditional_mcp_register, handle_exceptions
-from ...context import Context
+from ...common.context import RDSContext
+from ...common.decorators.handle_exceptions import handle_exceptions
+from ...common.decorators.register_mcp_primitive import register_mcp_primitive_by_context
+from ...common.utils import handle_paginated_aws_api_call
 from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import List
@@ -24,34 +26,7 @@ from typing import List
 
 RESOURCE_DESCRIPTION = """List all available NON-EMPTY log files for a specific Amazon RDS instance.
 
-<use_case>
-Use this resource to discover all non-empty log files for a specific RDS database instance.
-Log files provide detailed logs of database activities, helping you troubleshoot issues and monitor performance.
-</use_case>
-
-<important_notes>
-1. You must provide a valid DB instance identifier to retrieve log files
-2. Log files are only available for instances with logs enabled
-3. Log files are provided in chronological order with the most recent log files first
-</important_notes>
-
-## Response structure
-Returns an array of log file objects, each containing:
-- `log_file_identifier`: Unique identifier for the log file (string)
-- `last_write_time`: Time when the log file was last written to (datetime)
-- `size`: Size of the log file in bytes (integer)
-
-<examples>
-Example usage scenarios:
-1. Log analysis:
-   - List all available log files to identify periods of potential issues
-   - Track log files generated during specific time periods of interest
-
-2. Log troubleshooting:
-   - Find specific log file identifiers for detailed log analysis
-   - Monitor the status of recently generated log files
-   - Identify long-running or failed log files that may need investigation
-</examples>
+This resource retrieves information about non-empty log files for a specific RDS database instance, which provide detailed logs of database activities for troubleshooting issues and monitoring performance.
 """
 
 
@@ -100,9 +75,9 @@ tool_params = {
 }
 
 
-@conditional_mcp_register(resource_params, tool_params)
+@register_mcp_primitive_by_context(resource_params, tool_params)
 @handle_exceptions
-async def list_db_log_files(
+def list_db_log_files(
     db_instance_identifier: str = Field(..., description='The identifier for the DB instance'),
 ) -> DBLogFileListModel:
     """List all non-empty log files for the database.
@@ -115,25 +90,23 @@ async def list_db_log_files(
     """
     rds_client = RDSConnectionManager.get_connection()
 
-    paginator = rds_client.get_paginator('describe_db_log_files')
-    # Do not include empty database log files
-    page_iterator = paginator.paginate(
-        DBInstanceIdentifier=db_instance_identifier,
-        FileSize=1,
-        PaginationConfig=Context.get_pagination_config(),
-    )
+    operation_parameters = {
+        'DBInstanceIdentifier': db_instance_identifier,
+        'FileSize': 1,
+        'PaginationConfig': RDSContext.get_pagination_config(),
+    }
 
-    log_files: List[DBLogFileSummary] = []
-    for response in page_iterator:
-        for log_file in response.get('DescribeDBLogFiles', []):
-            # Convert AWS response to DBLogFileOverview objects
-            log_files.append(
-                DBLogFileSummary(
-                    log_file_name=log_file.get('LogFileName', ''),
-                    last_written=datetime.fromtimestamp(log_file.get('LastWritten', 0) / 1000),
-                    size=log_file.get('Size', 0),
-                )
-            )
+    log_files = handle_paginated_aws_api_call(
+        client=rds_client,
+        paginator_name='describe_db_log_files',
+        operation_parameters=operation_parameters,
+        format_function=lambda log_file: DBLogFileSummary(
+            log_file_name=log_file.get('LogFileName', ''),
+            last_written=datetime.fromtimestamp(log_file.get('LastWritten', 0) / 1000),
+            size=log_file.get('Size', 0),
+        ),
+        result_key='DescribeDBLogFiles',
+    )
 
     result = DBLogFileListModel(
         log_files=log_files,

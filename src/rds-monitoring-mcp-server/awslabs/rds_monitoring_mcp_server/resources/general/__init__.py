@@ -16,5 +16,6 @@
 # It is intentionally minimal to support PEP 420 namespace packages.
 
 from .metrics_guide import metrics_guide_resource
+from .list_metrics import list_rds_metrics
 
-__all__ = ['metrics_guide_resource']
+__all__ = ['metrics_guide_resource', 'list_rds_metrics']

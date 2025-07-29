@@ -22,7 +22,3 @@ MCP_SERVER_TAGS = [
     {'Key': 'mcp_server_version', 'Value': MCP_SERVER_VERSION},
     {'Key': 'created_by', 'Value': 'rds-control-plane-mcp-server'},
 ]
-
-# Error Messages
-ERROR_AWS_API = 'AWS API error: {}'
-ERROR_UNEXPECTED = 'Unexpected error: {}'

@@ -12,16 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This file is part of the awslabs namespace.
-# It is intentionally minimal to support PEP 420 namespace packages.
+from ..context import RDSContext
+from ..server import mcp
 
 
-from .describe_rds_events import describe_rds_events
-from .describe_rds_performance_metrics import describe_rds_performance_metrics
-from .describe_rds_recommendations import describe_rds_recommendations
+def register_mcp_primitive_by_context(resource_params, tool_params):
+    """Decorator to conditionally register as MCP resource or tool based on context.
 
-__all__ = [
-    'describe_rds_events',
-    'describe_rds_performance_metrics',
-    'describe_rds_recommendations',
-]
+    Args:
+        resource_params: Parameters for @mcp.resource decorator
+        tool_params: Parameters for @mcp.tool decorator
+    """
+
+    def decorator(func):
+        if RDSContext.register_resource_as_tool():
+            return mcp.tool(**tool_params)(func)
+        else:
+            return mcp.resource(**resource_params)(func)
+
+    return decorator

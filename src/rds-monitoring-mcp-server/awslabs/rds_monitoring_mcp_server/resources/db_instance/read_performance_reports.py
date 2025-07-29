@@ -15,7 +15,8 @@
 """aws-rds://db-instance/{dbi_resource_identifier}/performance_report/{report_id} resource implementation."""
 
 from ...common.connection import PIConnectionManager
-from ...common.decorators import conditional_mcp_register, handle_exceptions
+from ...common.decorators.handle_exceptions import handle_exceptions
+from ...common.decorators.register_mcp_primitive import register_mcp_primitive_by_context
 from datetime import datetime
 from loguru import logger
 from pydantic import BaseModel, Field
@@ -91,7 +92,7 @@ tool_params = {
 }
 
 
-@conditional_mcp_register(resource_params, tool_params)
+@register_mcp_primitive_by_context(resource_params, tool_params)
 @handle_exceptions
 async def read_performance_report(
     dbi_resource_identifier: str = Field(
