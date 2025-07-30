@@ -16,8 +16,8 @@
 
 import argparse
 from awslabs.rds_monitoring_mcp_server.common.constants import MCP_SERVER_VERSION
+from awslabs.rds_monitoring_mcp_server.common.context import RDSContext
 from awslabs.rds_monitoring_mcp_server.common.server import mcp
-from awslabs.rds_monitoring_mcp_server.context import Context
 from loguru import logger
 
 
@@ -49,7 +49,7 @@ def main():
     args = parser.parse_args()
 
     mcp.settings.port = args.port
-    Context.initialize(args.readonly, args.max_items, args.register_resources_as_tools)
+    RDSContext.initialize(args.readonly, args.max_items, args.register_resources_as_tools)
 
     # Import resources and tools for side effects to register them, this is done after Context has been initialized
     import awslabs.rds_monitoring_mcp_server.resources  # noqa: F401

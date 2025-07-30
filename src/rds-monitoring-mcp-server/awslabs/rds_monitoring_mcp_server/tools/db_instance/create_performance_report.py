@@ -12,22 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""create_performance_report helpers and tool implementation."""
+"""Performance report creation tool for RDS instances."""
 
 from ...common.connection import PIConnectionManager
-from ...common.constants import MCP_SERVER_TAGS
-from ...common.decorators import handle_exceptions
+from ...common.context import RDSContext
+from ...common.decorators.handle_exceptions import handle_exceptions
 from ...common.server import mcp
-from ...common.utils import convert_string_to_datetime
-from ...context import Context
 from datetime import datetime, timedelta
-from loguru import logger
 from mcp.types import ToolAnnotations
-from pydantic import Field
-from typing import Dict, List, Optional
+from typing import Optional
 
 
-# MCP Tool Args
+# Constants
+MIN_DURATION_MINUTES = 5
+MAX_DURATION_DAYS = 6
+DEFAULT_START_DAYS_AGO = 5
+DEFAULT_END_DAYS_AGO = 2
 
 REPORT_CREATION_SUCCESS_RESPONSE = """Performance analysis report creation has been initiated successfully.
 
@@ -39,54 +39,66 @@ you can access the report details using the Performance Insights dashboard or th
 Note: Report generation typically takes a few minutes depending on the time range selected.
 """
 
-TOOL_DESCRIPTION = """Create a performance report for an RDS instance.
+CREATE_PERF_REPORT_TOOL_DESCRIPTION = """Create a performance report for an RDS instance.
 
-    This tool creates a performance analysis report for a specific RDS instance over a time period
-    that can range from 5 minutes to 6 days. Creating performance reports is an asynchronous process.
-    The created reports will be tagged for identification.
+This tool creates a performance analysis report for a specific RDS instance over a time period that can range from 5 minutes to 6 days, helping identify performance bottlenecks, analyze database behavior patterns, and support optimization efforts.
 
-    <use_case>
-    Use this tool to generate detailed performance analysis reports for your RDS instances.
-    These reports can help identify performance bottlenecks, analyze database behavior patterns,
-    and support optimization efforts.
-    </use_case>
+<warning>
+- This operation will fail if running in read-only mode.
+- The analysis period must be between 5 minutes and 6 days, with at least 24 hours of performance data before the analysis start time.
+- Performance Insights and Advanced Database Insights must be configured on the instance.
+</warning>
+"""
 
-    <important_notes>
-    1. The analysis period can range from 5 minutes to 6 days
-    2. There must be at least 24 hours of performance data before the analysis start time
-    3. Time parameters must be in ISO8601 format (e.g., '2025-06-01T00:00:00Z')
-    4. This operation will fail if the --read-only flag is True
-    5. For region, DB engine, and instance class support information, see Amazon RDS documentation
-    </important_notes>
+
+def _parse_datetime(time_str: Optional[str], default_days_ago: int) -> datetime:
+    """Parse ISO8601 datetime string or return default time.
 
     Args:
-        dbi_resource_identifier: The DbiResourceId of a RDS Instance (e.g., db-EXAMPLEDBIID)
-        start_time: The beginning of the time interval for the report (ISO8601 format)
-        end_time: The end of the time interval for the report (ISO8601 format)
+        time_str: ISO8601 formatted datetime string or None
+        default_days_ago: Days to subtract from now for default value
 
     Returns:
-        str: A confirmation message with the report ID and instructions to access the report
+        datetime: Parsed datetime object
 
-    <examples>
-    Example usage scenarios:
-    1. Performance troubleshooting:
-       - Generate a report for a period where performance issues were observed
-       - Analyze the detailed metrics to identify bottlenecks
+    Raises:
+        ValueError: If time string format is invalid
+    """
+    if not time_str:
+        return datetime.now() - timedelta(days=default_days_ago)
 
-    2. Capacity planning:
-       - Create reports for peak usage periods
-       - Use the insights to make informed scaling decisions
+    if time_str.endswith('Z'):
+        time_str = time_str.replace('Z', '+00:00')
 
-    3. Performance optimization:
-       - Generate reports before and after configuration changes
-       - Compare the results to validate improvements
-    </examples>
-"""
+    try:
+        return datetime.fromisoformat(time_str)
+    except ValueError as e:
+        raise ValueError(f'Invalid time format: {e}')
+
+
+def _validate_time_range(start: datetime, end: datetime) -> None:
+    """Validate that the time range meets requirements.
+
+    Args:
+        start: Start datetime to validate
+        end: End datetime to validate
+
+    Raises:
+        ValueError: If time range is invalid
+    """
+    if start >= end:
+        raise ValueError('start_time must be before end_time')
+
+    duration = end - start
+    if duration < timedelta(minutes=MIN_DURATION_MINUTES):
+        raise ValueError(f'Time range must be at least {MIN_DURATION_MINUTES} minutes')
+    if duration > timedelta(days=MAX_DURATION_DAYS):
+        raise ValueError(f'Time range cannot exceed {MAX_DURATION_DAYS} days')
 
 
 @mcp.tool(
     name='CreatePerformanceReport',
-    description=TOOL_DESCRIPTION,
+    description=CREATE_PERF_REPORT_TOOL_DESCRIPTION,
     annotations=ToolAnnotations(
         title='CreatePerformanceReport',
         readOnlyHint=False,
@@ -96,34 +108,16 @@ TOOL_DESCRIPTION = """Create a performance report for an RDS instance.
 )
 @handle_exceptions
 async def create_performance_report(
-    dbi_resource_identifier: str = Field(
-        ...,
-        description='The DbiResourceId of a RDS Instance (e.g., db-EXAMPLEDBIID) for the data source where PI should get its metrics.',
-    ),
-    start_time: Optional[str] = Field(
-        None,
-        description='The beginning of the time interval for the report (ISO8601 format). This must be within 5 minutes to 6 days of the end_time. There must be at least 24 hours of performance data before the analysis start time.',
-    ),
-    end_time: Optional[str] = Field(
-        None,
-        description='The end of the time interval for the report (ISO8601 format). This must be within 5 minutes to 6 days of the start_time.',
-    ),
-    tags: List[Dict[str, str]] = Field(
-        [],
-        description='Optional list of tags to apply to the new report. A tag indicating that this report was created by this MCP server is automatically added.',
-    ),
+    dbi_resource_identifier: str,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
 ) -> str:
     """Create a performance analysis report for a specific RDS instance.
-
-    This function initiates the creation of a performance analysis report for the specified
-    RDS instance over the given time period. The report generation is asynchronous and
-    will continue after this function returns.
 
     Args:
         dbi_resource_identifier: The DbiResourceId of the RDS instance to analyze
         start_time: The beginning of the time interval for the report (ISO8601 format)
         end_time: The end of the time interval for the report (ISO8601 format)
-        tags: Optional list of tags to apply to the new report. A tag indicating that this report was created by this MCP server is automatically added.
 
     Returns:
         str: A confirmation message with the report ID and access instructions
@@ -131,39 +125,29 @@ async def create_performance_report(
     Raises:
         ValueError: If running in readonly mode or if parameters are invalid
     """
-    if Context.readonly_mode():
-        logger.warning('You are running this tool in readonly mode. This operation is not allowed')
-        raise ValueError(
-            'You have configured this tool in readonly mode. To make this change you will have to update your configuration.'
-        )
+    if RDSContext.readonly_mode():
+        raise ValueError('Cannot create performance report in read-only mode')
 
-    start_time_str = start_time if isinstance(start_time, str) else None
-    end_time_str = end_time if isinstance(end_time, str) else None
+    start = _parse_datetime(start_time, DEFAULT_START_DAYS_AGO)
+    end = _parse_datetime(end_time, DEFAULT_END_DAYS_AGO)
+    _validate_time_range(start, end)
 
-    start = convert_string_to_datetime(
-        default=datetime.now() - timedelta(days=5), date_string=start_time_str
-    )
-    end = convert_string_to_datetime(
-        default=datetime.now() - timedelta(days=2), date_string=end_time_str
-    )
-
-    report_tags = MCP_SERVER_TAGS
-    tag_list = tags if isinstance(tags, list) else []
-
-    if tag_list:
-        for tag_item in tag_list:
-            for key, value in tag_item.items():
-                report_tags.append({'Key': key, 'Value': value})
+    params = {
+        'ServiceType': 'RDS',
+        'Identifier': dbi_resource_identifier,
+        'StartTime': start,
+        'EndTime': end,
+        'Tags': [
+            {'Key': 'mcp_server_version', 'Value': 'latest'},
+            {'Key': 'created_by', 'Value': 'rds-control-plane-mcp-server'},
+        ],
+    }
 
     pi_client = PIConnectionManager.get_connection()
-    response = pi_client.create_performance_analysis_report(
-        ServiceType='RDS',
-        Identifier=dbi_resource_identifier,
-        StartTime=start,
-        EndTime=end,
-        Tags=report_tags,
-    )
+    response = pi_client.create_performance_analysis_report(**params)
 
     report_id = response.get('AnalysisReportId')
+    if not report_id:
+        raise ValueError('Failed to create performance report: No report ID returned')
 
     return REPORT_CREATION_SUCCESS_RESPONSE.format(report_id, dbi_resource_identifier)

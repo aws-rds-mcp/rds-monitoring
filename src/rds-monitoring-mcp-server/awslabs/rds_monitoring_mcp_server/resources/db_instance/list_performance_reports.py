@@ -16,8 +16,9 @@
 
 import asyncio
 from ...common.connection import PIConnectionManager
-from ...common.decorators import conditional_mcp_register, handle_exceptions
-from ...context import Context
+from ...common.context import RDSContext as Context
+from ...common.decorators.handle_exceptions import handle_exceptions
+from ...common.decorators.register_mcp_primitive import register_mcp_primitive_by_context
 from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import List, Literal, Optional
@@ -75,7 +76,6 @@ class PerformanceReportSummary(BaseModel):
         status: Current status of the report (RUNNING, SUCCEEDED, or FAILED).
     """
 
-    # Models the AnalysisReportSummaryTypeDef class which has no required fields
     analysis_report_id: Optional[str] = Field(
         None, description='Unique identifier for the performance report'
     )
@@ -110,7 +110,7 @@ tool_params = {
 }
 
 
-@conditional_mcp_register(resource_params, tool_params)
+@register_mcp_primitive_by_context(resource_params, tool_params)
 @handle_exceptions
 async def list_performance_reports(
     dbi_resource_identifier: str = Field(

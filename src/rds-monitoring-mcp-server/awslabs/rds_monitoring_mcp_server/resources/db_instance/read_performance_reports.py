@@ -15,7 +15,8 @@
 """aws-rds://db-instance/{dbi_resource_identifier}/performance_report/{report_id} resource implementation."""
 
 from ...common.connection import PIConnectionManager
-from ...common.decorators import conditional_mcp_register, handle_exceptions
+from ...common.decorators.handle_exceptions import handle_exceptions
+from ...common.decorators.register_mcp_primitive import register_mcp_primitive_by_context
 from datetime import datetime
 from loguru import logger
 from pydantic import BaseModel, Field
@@ -24,44 +25,10 @@ from typing import Any, Dict, List
 
 RESOURCE_DESCRIPTION = """Read the contents of a specific performance report for a specific Amazon RDS instance.
 
-<use_case>
-Use this resource to retrieve detailed performance analysis data from a specific Performance Insights report.
-These reports contain comprehensive information about database performance issues, including root cause analysis,
-top SQL queries causing load, wait events, and recommended actions for performance optimization.
-</use_case>
-
 <important_notes>
-1. You must provide both a valid DB instance identifier and report identifier
+1. You must provide both a valid dbi_resource_identifier and report identifier
 2. The report must be in a SUCCEEDED status to be fully readable
-3. Reports in RUNNING status may return partial results
-4. Reports in FAILED status will return error information about why the analysis failed
-5. Large reports may contain extensive data about the performance issues analyzed
 </important_notes>
-
-## Response structure
-Returns a detailed performance report object containing:
-- `AnalysisReportId`: Unique identifier for the performance report (string)
-- `ServiceType`: Service type (always 'RDS' for RDS instances) (string)
-- `CreateTime`: Time when the report was created (datetime)
-- `StartTime`: Start time of the analysis period (datetime)
-- `EndTime`: End time of the analysis period (datetime)
-- `Status`: Current status of the report (RUNNING, SUCCEEDED, or FAILED) (string)
-- `AnalysisData`: The detailed performance analysis (object)
-  - May include metrics, anomalies, query analysis, and recommendations
-- `Tags`: List of tags attached to the report (array of key-value pairs)
-
-<examples>
-Example usage scenarios:
-1. Performance troubleshooting:
-   - Analyze root causes of performance bottlenecks during a specific period
-   - Identify top resource-consuming SQL queries during performance degradation
-   - Review wait events that contributed to slowdowns
-
-2. Performance optimization:
-   - Review recommended actions to improve database performance
-   - Analyze patterns in resource usage to guide optimization efforts
-   - Document performance issues for change management or postmortem analysis
-</examples>
 """
 
 
@@ -91,7 +58,7 @@ tool_params = {
 }
 
 
-@conditional_mcp_register(resource_params, tool_params)
+@register_mcp_primitive_by_context(resource_params, tool_params)
 @handle_exceptions
 async def read_performance_report(
     dbi_resource_identifier: str = Field(

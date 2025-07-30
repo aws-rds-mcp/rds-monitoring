@@ -14,23 +14,55 @@
 
 """describe_rds_events helpers, data models and tool implementation."""
 
-import json
 from ...common.connection import RDSConnectionManager
-from ...common.decorators import handle_exceptions
+from ...common.context import RDSContext
+from ...common.decorators.handle_exceptions import handle_exceptions
 from ...common.server import mcp
-from ...context import Context
 from datetime import datetime
-from mcp.server.fastmcp import Context as ctx
 from mcp.types import ToolAnnotations
 from mypy_boto3_rds.type_defs import EventTypeDef
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, fields
 from typing import List, Literal, Optional
 
 
-# Data Models
+SOURCE_TYPE_TO_EVENT_CATEGORIES = {
+    'db-instance': [
+        'availability',
+        'backup',
+        'configuration change',
+        'creation',
+        'deletion',
+        'failover',
+        'failure',
+        'low storage',
+        'maintenance',
+        'notification',
+        'read replica',
+        'recovery',
+        'restoration',
+        'security',
+        'security patching',
+    ],
+    'db-cluster': [
+        'configuration change',
+        'creation',
+        'failover',
+        'failure',
+        'maintenance',
+        'notification',
+        'read replica',
+    ],
+    'db-cluster-snapshot': ['backup', 'notification'],
+    'db-parameter-group': ['configuration change'],
+    'db-security-group': ['configuration change', 'failure'],
+    'db-snapshot': ['creation', 'deletion', 'notification', 'restoration'],
+    'db-proxy': ['configuration change', 'creation', 'deletion', 'failure'],
+    'blue-green-deployment': ['creation', 'failure', 'deletion', 'notification'],
+    'custom-engine-version': ['creation', 'failure', 'restoring'],
+}
 
 
-class DBEvent(BaseModel):
+class Event(BaseModel):
     """A model representing a database event."""
 
     message: str = Field(..., description='Text of this event')
@@ -40,120 +72,57 @@ class DBEvent(BaseModel):
         None, description='The Amazon Resource Name (ARN) for the event'
     )
 
+    @classmethod
+    def from_event_data(cls, event: EventTypeDef) -> 'Event':
+        """Create Event from AWS API event data.
 
-class DBEventList(BaseModel):
+        Args:
+            event (EventTypeDef): The AWS RDS event data dictionary containing event details
+
+        Returns:
+            Event: A new Event instance populated with the AWS event data
+        """
+        date_value = event.get('Date')
+        if date_value is None:
+            formatted_date = ''
+        elif isinstance(date_value, datetime):
+            formatted_date = date_value.isoformat()
+        else:
+            formatted_date = str(date_value)
+
+        return cls(
+            message=event.get('Message', ''),
+            event_categories=event.get('EventCategories', []),
+            date=formatted_date,
+            source_arn=event.get('SourceArn'),
+        )
+
+
+class EventList(BaseModel):
     """A model representing the response of the describe_rds_events function."""
 
     source_identifier: str = Field(..., description='Identifier for the source of the event')
-    source_type: Literal[
-        'db-instance',
-        'db-parameter-group',
-        'db-security-group',
-        'db-snapshot',
-        'db-cluster',
-        'db-cluster-snapshot',
-        'custom-engine-version',
-        'db-proxy',
-        'blue-green-deployment',
-    ]
-    events: List[DBEvent] = Field(..., description='List of DB events')
+    source_type: str = Field(..., description='The type of source')
+    events: List[Event] = Field(..., description='List of RDS events')
     count: int = Field(..., description='Total number of events')
 
 
-# Helper Function
+DESCRIBE_EVENTS_TOOL_DESCRIPTION = """List events for an RDS resource.
 
-
-def format_event(event: EventTypeDef) -> DBEvent:
-    """Format an event from the AWS API into a DBEvent model.
-
-    Args:
-        event: The event dictionary from the AWS API
-
-    Returns:
-        DBEvent: The formatted event
-    """
-    # Handle date conversion carefully
-    date_value = event.get('Date')
-    if date_value is None:
-        formatted_date = ''
-    elif isinstance(date_value, datetime):
-        formatted_date = date_value.isoformat()
-    else:
-        formatted_date = str(date_value)
-
-    return DBEvent(
-        message=event.get('Message', ''),
-        event_categories=event.get('EventCategories', []),
-        date=formatted_date,
-        source_arn=event.get('SourceArn'),
-    )
-
-
-# MCP Tool Args
-
-TOOL_DESCRIPTION = """List events for an RDS resource.
-
-    This tool retrieves events for RDS resources such as DB instances, clusters,
-    security groups, etc. Events can be filtered by source identifier, category,
-    time period, and source type.
-
-    <use_case>
-    Use this tool to monitor and troubleshoot RDS resources by retrieving event information.
-    Events include operational activities, status changes, and notifications about your
-    RDS resources.
-    </use_case>
-
-    <important_notes>
-    1. You must provide a valid source_identifier and source_type
-    2. For time-based filtering, you can use either duration or start_time/end_time, but not both
-    3. Duration is limited to 14 days (20160 minutes) in the past
-    4. Start and end times must be in ISO8601 format
-    5. Use the event categories to filter specific types of events (backup, configuration change, etc.)
-    </important_notes>
-
-    Args:
-        ctx: The MCP context object for handling the request and providing access to server utilities
-        source_identifier: The identifier of the event source (e.g., DB instance or DB cluster)
-        source_type: The type of source ('db-instance', 'db-security-group', 'db-parameter-group',
-                    'db-snapshot', 'db-cluster', or 'db-cluster-snapshot')
-        event_categories: The categories of events (e.g., 'backup', 'configuration change', etc.)
-        duration: The number of minutes in the past to retrieve events
-        start_time: The beginning of the time interval to retrieve events (ISO8601 format)
-        end_time: The end of the time interval to retrieve events (ISO8601 format)
-
-    Returns:
-        str: A JSON string containing a list of events for the specified resource
-
-    <examples>
-    Example usage scenarios:
-    1. View recent events for a DB instance:
-       - Retrieve events from the last 24 hours for a specific instance
-       - Check for any configuration changes or maintenance activities
-
-    2. Investigate issues with a DB cluster:
-       - Look for failover events during a specific time period
-       - Check for connectivity or availability issues reported in events
-
-    3. Monitor backup status:
-       - Filter events by the 'backup' category to verify successful backups
-       - Identify any backup failures or issues
-    </examples>
+This tool retrieves events for RDS resources such as DB instances, clusters, security groups, etc. Events include operational activities, status changes, and notifications that can be filtered by source identifier, category, time period, and source type.
 """
-
-# MCP Tool
 
 
 @mcp.tool(
     name='DescribeRDSEvents',
-    description=TOOL_DESCRIPTION,
+    description=DESCRIBE_EVENTS_TOOL_DESCRIPTION,
     annotations=ToolAnnotations(
         title='DescribeRDSEvents',
         readOnlyHint=True,
     ),
 )
 @handle_exceptions
-async def describe_rds_events(
-    ctx: ctx,
+def describe_rds_events(
     source_identifier: str = Field(
         ...,
         description='The identifier of the event source (e.g., DBInstanceIdentifier or DBClusterIdentifier). A valid identifier must be provided.',
@@ -170,7 +139,8 @@ async def describe_rds_events(
         'blue-green-deployment',
     ] = Field(..., description='The type of source'),
     event_categories: Optional[List[str]] = Field(
-        None, description='The categories of events (e.g., backup, configuration change)'
+        None,
+        description='The categories of events (e.g., backup, configuration change, low storage, etc.)',
     ),
     duration: Optional[int] = Field(
         None,
@@ -182,34 +152,36 @@ async def describe_rds_events(
     end_time: Optional[str] = Field(
         None, description='The end of the time interval to retrieve events (ISO8601 format)'
     ),
-) -> str:
+) -> EventList:
     """List events for an RDS resource.
 
-    This function retrieves events for RDS resources such as DB instances, clusters,
-    security groups, etc. Events can be filtered by source identifier, category,
-    time period, and source type.
-
     Args:
-        rds_client: The boto3 RDS client to use for making API calls
         source_identifier: The identifier of the event source (e.g., DB instance or DB cluster)
-        source_type: The type of source ('db-instance', 'db-security-group', 'db-parameter-group',
-                    'db-snapshot', 'db-cluster', or 'db-cluster-snapshot')
-        event_categories: List of categories of events (e.g., 'backup', 'configuration change', etc.)
+        source_type: The type of source (db-instance, db-cluster, etc.)
+        event_categories: List of categories of events (e.g., backup, configuration change, etc.)
         duration: The number of minutes in the past to retrieve events (up to 14 days/20160 minutes)
         start_time: The beginning of the time interval to retrieve events
         end_time: The end of the time interval to retrieve events
-        ctx: The MCP context object for error handling and logging
 
     Returns:
-        str: A JSON string containing a list of events in the database
+        EventList: List of events for the specified resource
     """
+    if isinstance(event_categories, fields.FieldInfo):
+        event_categories = None
+
     params = {
         'SourceIdentifier': source_identifier,
         'SourceType': source_type,
-        'MaxRecords': Context.max_items(),
+        'MaxRecords': RDSContext.max_items(),
     }
 
     if event_categories:
+        valid_categories = SOURCE_TYPE_TO_EVENT_CATEGORIES.get(source_type, [])
+        invalid_categories = [cat for cat in event_categories if cat not in valid_categories]
+        if invalid_categories:
+            raise ValueError(
+                f'Invalid event categories for {source_type}: {invalid_categories}. Valid categories: {valid_categories}'
+            )
         params['EventCategories'] = event_categories
     if duration:
         params['Duration'] = duration
@@ -221,12 +193,11 @@ async def describe_rds_events(
     rds_client = RDSConnectionManager.get_connection()
     response = rds_client.describe_events(**params)
     raw_events = response.get('Events', [])
-    processed_events = [format_event(event) for event in raw_events]
-    result = DBEventList(
+    processed_events = [Event.from_event_data(event) for event in raw_events]
+
+    return EventList(
         events=processed_events,
         count=len(processed_events),
         source_identifier=source_identifier,
         source_type=source_type,
     )
-    serializable_dict = result.model_dump()
-    return json.dumps(serializable_dict, indent=2)

@@ -12,176 +12,65 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for RDS DB log files listing functionality."""
+"""Tests for list_db_log_files resource."""
 
 import pytest
 from awslabs.rds_monitoring_mcp_server.resources.db_instance.list_db_logs import (
-    DBLogFileListModel,
+    DBLogFileSummary,
     list_db_log_files,
 )
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 
 class TestListDBLogFiles:
-    """Tests for the list_db_log_files MCP resource."""
+    """Test list_db_log_files function."""
 
     @pytest.mark.asyncio
-    async def test_standard_response(self, mock_rds_client):
-        """Test with standard response containing log files."""
-        mock_log_files = [
-            {
-                'LogFileName': 'error/mysql-error.log',
-                'LastWritten': 1625097600000,
-                'Size': 1024,
-            },
-            {
-                'LogFileName': 'error/mysql-error-previous.log',
-                'LastWritten': 1624838400000,
-                'Size': 2048,
-            },
-        ]
+    async def test_success(self, mock_rds_client):
+        """Test successful log file retrieval."""
+        mock_log_file = DBLogFileSummary(
+            log_file_name='error/mysql-error.log',
+            last_written=datetime(2024, 1, 1, 12, 0, 0),
+            size=1024,
+        )
 
-        mock_paginator = MagicMock()
-        mock_paginator_iterator = MagicMock()
+        with patch(
+            'awslabs.rds_monitoring_mcp_server.resources.db_instance.list_db_logs.handle_paginated_aws_api_call'
+        ) as mock_call:
+            mock_call.return_value = [mock_log_file]
 
-        mock_rds_client.get_paginator.return_value = mock_paginator
-        mock_paginator.paginate.return_value = mock_paginator_iterator
-        mock_paginator_iterator.__iter__.return_value = [{'DescribeDBLogFiles': mock_log_files}]
+            result = await list_db_log_files(db_instance_identifier='test-instance')
 
-        result = await list_db_log_files('test-instance')
-
-        mock_rds_client.get_paginator.assert_called_once_with('describe_db_log_files')
-        mock_paginator.paginate.assert_called_once()
-
-        call_args = mock_paginator.paginate.call_args[1]
-        assert call_args['DBInstanceIdentifier'] == 'test-instance'
-        assert call_args['FileSize'] == 1
-
-        assert isinstance(result, DBLogFileListModel)
-        assert result.count == 2
-        assert len(result.log_files) == 2
-
+        assert result.count == 1
+        assert len(result.log_files) == 1
         assert result.log_files[0].log_file_name == 'error/mysql-error.log'
-        assert result.log_files[0].size == 1024
-        assert result.log_files[0].last_written == datetime.fromtimestamp(1625097600000 / 1000)
-
-        assert result.log_files[1].log_file_name == 'error/mysql-error-previous.log'
-        assert result.log_files[1].size == 2048
-        assert result.log_files[1].last_written == datetime.fromtimestamp(1624838400000 / 1000)
 
     @pytest.mark.asyncio
     async def test_empty_response(self, mock_rds_client):
-        """Test with empty response containing no log files."""
-        mock_paginator = MagicMock()
-        mock_paginator_iterator = MagicMock()
+        """Test handling of empty log file response."""
+        with patch(
+            'awslabs.rds_monitoring_mcp_server.resources.db_instance.list_db_logs.handle_paginated_aws_api_call'
+        ) as mock_call:
+            mock_call.return_value = []
 
-        mock_rds_client.get_paginator.return_value = mock_paginator
-        mock_paginator.paginate.return_value = mock_paginator_iterator
-        mock_paginator_iterator.__iter__.return_value = [{'DescribeDBLogFiles': []}]
+            result = await list_db_log_files(db_instance_identifier='test-instance')
 
-        result = await list_db_log_files('test-instance')
-
-        assert isinstance(result, DBLogFileListModel)
         assert result.count == 0
         assert len(result.log_files) == 0
 
-    @pytest.mark.asyncio
-    async def test_multiple_pages(self, mock_rds_client):
-        """Test with multiple pages of log files."""
-        mock_log_files_page1 = [
-            {
-                'LogFileName': 'error/mysql-error.log',
-                'LastWritten': 1625097600000,
-                'Size': 1024,
-            },
-        ]
 
-        mock_log_files_page2 = [
-            {
-                'LogFileName': 'error/mysql-error-previous.log',
-                'LastWritten': 1624838400000,
-                'Size': 2048,
-            },
-        ]
+class TestDBLogFileSummary:
+    """Test DBLogFileSummary model."""
 
-        mock_paginator = MagicMock()
-        mock_paginator_iterator = MagicMock()
+    def test_model_creation(self):
+        """Test model creation with valid data."""
+        log_file = DBLogFileSummary(
+            log_file_name='error/mysql-error.log',
+            last_written=datetime(2024, 1, 1, 12, 0, 0),
+            size=2048,
+        )
 
-        mock_rds_client.get_paginator.return_value = mock_paginator
-        mock_paginator.paginate.return_value = mock_paginator_iterator
-        mock_paginator_iterator.__iter__.return_value = [
-            {'DescribeDBLogFiles': mock_log_files_page1},
-            {'DescribeDBLogFiles': mock_log_files_page2},
-        ]
-
-        result = await list_db_log_files('test-instance')
-
-        assert isinstance(result, DBLogFileListModel)
-        assert result.count == 2
-        assert len(result.log_files) == 2
-
-        assert result.log_files[0].log_file_name == 'error/mysql-error.log'
-        assert result.log_files[1].log_file_name == 'error/mysql-error-previous.log'
-
-    @pytest.mark.asyncio
-    async def test_missing_fields(self, mock_rds_client):
-        """Test handling of missing fields in AWS response."""
-        mock_log_files = [
-            {
-                'LogFileName': 'error/mysql-error.log',
-                'Size': 1024,
-            },
-            {
-                'LastWritten': 1624838400000,
-                'Size': 2048,
-            },
-            {
-                'LogFileName': 'error/mysql-slow-query.log',
-                'LastWritten': 1624838400000,
-            },
-        ]
-
-        mock_paginator = MagicMock()
-        mock_paginator_iterator = MagicMock()
-
-        mock_rds_client.get_paginator.return_value = mock_paginator
-        mock_paginator.paginate.return_value = mock_paginator_iterator
-        mock_paginator_iterator.__iter__.return_value = [{'DescribeDBLogFiles': mock_log_files}]
-
-        result = await list_db_log_files('test-instance')
-
-        assert isinstance(result, DBLogFileListModel)
-        assert result.count == 3
-        assert len(result.log_files) == 3
-
-        assert result.log_files[0].log_file_name == 'error/mysql-error.log'
-        assert result.log_files[0].last_written == datetime.fromtimestamp(0)
-
-        assert result.log_files[1].log_file_name == ''
-        assert result.log_files[1].last_written == datetime.fromtimestamp(1624838400000 / 1000)
-
-        assert result.log_files[2].log_file_name == 'error/mysql-slow-query.log'
-        assert result.log_files[2].size == 0
-
-    @pytest.mark.asyncio
-    @patch('awslabs.rds_monitoring_mcp_server.resources.db_instance.list_db_logs.Context')
-    async def test_pagination_config(self, mock_context, mock_rds_client):
-        """Test that pagination configuration is properly set."""
-        mock_pagination_config = {'MaxItems': 50, 'PageSize': 10}
-        mock_context.get_pagination_config.return_value = mock_pagination_config
-
-        mock_paginator = MagicMock()
-        mock_paginator_iterator = MagicMock()
-
-        mock_rds_client.get_paginator.return_value = mock_paginator
-        mock_paginator.paginate.return_value = mock_paginator_iterator
-        mock_paginator_iterator.__iter__.return_value = [{'DescribeDBLogFiles': []}]
-
-        await list_db_log_files('test-instance')
-
-        mock_context.get_pagination_config.assert_called_once()
-        mock_paginator.paginate.assert_called_once()
-
-        call_args = mock_paginator.paginate.call_args[1]
-        assert call_args['PaginationConfig'] == mock_pagination_config
+        assert log_file.log_file_name == 'error/mysql-error.log'
+        assert log_file.last_written == datetime(2024, 1, 1, 12, 0, 0)
+        assert log_file.size == 2048

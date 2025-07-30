@@ -2,6 +2,7 @@
 
 import pytest
 from awslabs.rds_monitoring_mcp_server.tools.general.describe_rds_performance_metrics import (
+    DataPoint,
     MetricSummary,
     MetricSummaryList,
     describe_rds_performance_metrics,
@@ -49,9 +50,8 @@ class TestMetricSummary:
         assert result.min_value == 40.0
         assert result.max_value == 60.0
         assert result.avg_value == 50.0
-        assert result.change_percent == -33.33  # (40-60)/60*100
-        assert result.trend == 'decreasing'
         assert result.data_points_count == 3
+        assert len(result.sample_data_points) == 3
 
     def test_from_metric_data_empty_values(self):
         """Test MetricSummary.from_metric_data with empty values."""
@@ -67,11 +67,11 @@ class TestMetricSummary:
 
         assert result.id == 'metric_CPUUtilization_Average'
         assert result.current_value == 0
-        assert result.trend == 'no_data'
         assert result.data_points_count == 0
+        assert len(result.sample_data_points) == 0
 
     def test_from_metric_data_stable_trend(self):
-        """Test MetricSummary trend calculation for stable values."""
+        """Test MetricSummary with stable values."""
         metric_data = {
             'Id': 'metric_test',
             'Label': 'test',
@@ -84,10 +84,11 @@ class TestMetricSummary:
         }
 
         result = MetricSummary.from_metric_data(metric_data)
-        assert result.trend == 'stable'  # 1% change
+        assert result.data_points_count == 2
+        assert len(result.sample_data_points) == 2
 
     def test_from_metric_data_increasing_trend(self):
-        """Test MetricSummary trend calculation for increasing values."""
+        """Test MetricSummary with increasing values."""
         metric_data = {
             'Id': 'metric_test',
             'Label': 'test',
@@ -100,7 +101,9 @@ class TestMetricSummary:
         }
 
         result = MetricSummary.from_metric_data(metric_data)
-        assert result.trend == 'increasing'  # 20% change
+        assert result.current_value == 60.0
+        assert result.min_value == 50.0
+        assert result.max_value == 60.0
 
 
 class TestDescribeRDSPerformanceMetrics:
@@ -119,9 +122,10 @@ class TestDescribeRDSPerformanceMetrics:
             min_value=40.0,
             max_value=60.0,
             avg_value=50.0,
-            trend='stable',
-            change_percent=0.0,
             data_points_count=10,
+            sample_data_points=[
+                DataPoint(timestamp=datetime(2025, 1, 1, tzinfo=timezone.utc), value=50.0)
+            ],
         )
         mock_handle_paginated_call.return_value = [mock_summary]
 
@@ -152,9 +156,10 @@ class TestDescribeRDSPerformanceMetrics:
             min_value=900.0,
             max_value=1100.0,
             avg_value=1000.0,
-            trend='stable',
-            change_percent=0.0,
             data_points_count=5,
+            sample_data_points=[
+                DataPoint(timestamp=datetime(2025, 1, 1, tzinfo=timezone.utc), value=1000.0)
+            ],
         )
         mock_handle_paginated_call.return_value = [mock_summary]
 
@@ -183,9 +188,10 @@ class TestDescribeRDSPerformanceMetrics:
             min_value=50.0,
             max_value=150.0,
             avg_value=100.0,
-            trend='stable',
-            change_percent=0.0,
             data_points_count=8,
+            sample_data_points=[
+                DataPoint(timestamp=datetime(2025, 1, 1, tzinfo=timezone.utc), value=100.0)
+            ],
         )
         mock_handle_paginated_call.return_value = [mock_summary]
 

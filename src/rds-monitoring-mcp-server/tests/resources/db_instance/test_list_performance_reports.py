@@ -20,14 +20,12 @@ from awslabs.rds_monitoring_mcp_server.resources.db_instance.list_performance_re
     list_performance_reports,
 )
 from datetime import datetime
-from unittest.mock import patch
 
 
 class TestListPerformanceReports:
     """Tests for the list_performance_reports MCP resource."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.rds_monitoring_mcp_server.context.Context')
     async def test_standard_response(self, mock_context, mock_pi_client):
         """Test with standard response containing performance reports."""
         mock_create_time = datetime(2023, 1, 1, 0, 0, 0)
@@ -51,7 +49,6 @@ class TestListPerformanceReports:
             },
         ]
 
-        mock_context.max_items.return_value = 100
         mock_pi_client.list_performance_analysis_reports.return_value = {
             'AnalysisReports': mock_reports
         }
@@ -73,10 +70,8 @@ class TestListPerformanceReports:
         assert result.reports[1].status == 'RUNNING'
 
     @pytest.mark.asyncio
-    @patch('awslabs.rds_monitoring_mcp_server.context.Context')
     async def test_empty_response(self, mock_context, mock_pi_client):
         """Test with empty response containing no performance reports."""
-        mock_context.max_items.return_value = 100
         mock_pi_client.list_performance_analysis_reports.return_value = {'AnalysisReports': []}
 
         result = await list_performance_reports('db-instance-123')
@@ -86,7 +81,6 @@ class TestListPerformanceReports:
         assert len(result.reports) == 0
 
     @pytest.mark.asyncio
-    @patch('awslabs.rds_monitoring_mcp_server.context.Context')
     async def test_missing_fields(self, mock_context, mock_pi_client):
         """Test handling of missing fields in AWS response."""
         mock_create_time = datetime(2023, 1, 1, 0, 0, 0)
@@ -114,7 +108,6 @@ class TestListPerformanceReports:
             },
         ]
 
-        mock_context.max_items.return_value = 100
         mock_pi_client.list_performance_analysis_reports.return_value = {
             'AnalysisReports': mock_reports
         }

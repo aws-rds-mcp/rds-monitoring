@@ -17,7 +17,7 @@
 from mypy_boto3_rds.type_defs import PaginatorConfigTypeDef
 
 
-class Context:
+class RDSContext:
     """Context class for RDS Monitoring Plane MCP Server."""
 
     _readonly = True
@@ -26,7 +26,7 @@ class Context:
 
     @classmethod
     def initialize(
-        cls, readonly: bool = True, max_items: int = 100, register_resource_as_tool: bool = False
+        cls, readonly: bool = True, max_items: int = 100, register_resource_as_tool: bool = True
     ):
         """Initialize the context.
 
@@ -75,5 +75,4 @@ class Context:
         """
         return {
             'MaxItems': cls._max_items,
-            'PageSize': 20,
         }

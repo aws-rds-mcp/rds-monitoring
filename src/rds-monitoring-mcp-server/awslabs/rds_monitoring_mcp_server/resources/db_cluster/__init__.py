@@ -15,7 +15,7 @@
 # This file is part of the awslabs namespace.
 # It is intentionally minimal to support PEP 420 namespace packages.
 
-from .cluster_discovery import get_cluster_details, get_cluster_overview
-from .list_cluster_metrics import list_cluster_metrics
+from .describe_cluster_detail import describe_cluster_detail
+from .list_clusters import list_clusters
 
-__all__ = ['get_cluster_details', 'get_cluster_overview', 'list_cluster_metrics']
+__all__ = ['describe_cluster_detail', 'list_clusters']

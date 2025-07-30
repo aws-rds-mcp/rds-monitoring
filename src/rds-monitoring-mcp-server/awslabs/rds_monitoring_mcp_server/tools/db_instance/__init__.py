@@ -17,6 +17,6 @@
 
 from .create_performance_report import create_performance_report
 from .find_slow_queries_and_wait_events import find_slow_queries_and_wait_events
-from .read_rds_db_logs import read_rds_db_logs
+from .read_rds_db_file import read_db_log_file
 
-__all__ = ['create_performance_report', 'find_slow_queries_and_wait_events', 'read_rds_db_logs']
+__all__ = ['create_performance_report', 'find_slow_queries_and_wait_events', 'read_db_log_file']

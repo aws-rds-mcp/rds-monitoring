@@ -12,17 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Decorators used by the RDS Monitoring Plane MCP Server."""
+"""General exception handling decorator used by the RDS Monitoring Plane MCP Server."""
 
 import json
-from ..common.constants import ERROR_AWS_API, ERROR_UNEXPECTED
-from ..context import Context
-from .server import mcp
 from botocore.exceptions import ClientError
 from functools import wraps
 from inspect import iscoroutinefunction
 from loguru import logger
 from typing import Any, Callable
+
+
+# Error Messages
+ERROR_AWS_API = 'AWS API error: {}'
+ERROR_UNEXPECTED = 'Unexpected error: {}'
 
 
 def handle_exceptions(func: Callable) -> Callable:
@@ -76,20 +78,3 @@ def handle_exceptions(func: Callable) -> Callable:
                 )
 
     return wrapper
-
-
-def conditional_mcp_register(resource_params, tool_params):
-    """Decorator to conditionally register as MCP resource or tool based on context.
-
-    Args:
-        resource_params: Parameters for @mcp.resource decorator
-        tool_params: Parameters for @mcp.tool decorator
-    """
-
-    def decorator(func):
-        if Context.register_resource_as_tool():
-            return mcp.tool(**tool_params)(func)
-        else:
-            return mcp.resource(**resource_params)(func)
-
-    return decorator
