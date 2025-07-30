@@ -116,7 +116,7 @@ async def describe_rds_recommendations(
     dbi_resource_id: Optional[str] = Field(
         None, description='Filter by database instance resource identifier'
     ),
-) -> str:
+) -> DBRecommendationList:
     """Retrieve RDS recommendations and convert them to simplified models suitable for LLM summarization and insights.
 
     Args:

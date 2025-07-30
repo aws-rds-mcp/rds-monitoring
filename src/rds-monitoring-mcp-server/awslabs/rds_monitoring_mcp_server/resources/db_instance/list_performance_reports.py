@@ -76,7 +76,6 @@ class PerformanceReportSummary(BaseModel):
         status: Current status of the report (RUNNING, SUCCEEDED, or FAILED).
     """
 
-    # Models the AnalysisReportSummaryTypeDef class which has no required fields
     analysis_report_id: Optional[str] = Field(
         None, description='Unique identifier for the performance report'
     )

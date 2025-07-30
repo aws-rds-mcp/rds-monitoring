@@ -21,7 +21,7 @@ from ...common.server import mcp
 from datetime import datetime
 from mcp.types import ToolAnnotations
 from mypy_boto3_rds.type_defs import EventTypeDef
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, fields
 from typing import List, Literal, Optional
 
 
@@ -166,6 +166,9 @@ def describe_rds_events(
     Returns:
         EventList: List of events for the specified resource
     """
+    if isinstance(event_categories, fields.FieldInfo):
+        event_categories = None
+
     params = {
         'SourceIdentifier': source_identifier,
         'SourceType': source_type,

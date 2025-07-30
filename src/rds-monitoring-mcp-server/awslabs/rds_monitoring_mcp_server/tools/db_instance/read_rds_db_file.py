@@ -19,7 +19,7 @@ from ...common.connection import RDSConnectionManager
 from ...common.decorators.handle_exceptions import handle_exceptions
 from ...common.server import mcp
 from mcp.server.fastmcp import Context as FastMCPContext
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, fields
 from typing import Optional
 
 
@@ -72,19 +72,28 @@ async def preprocess_log_content(
     Returns:
         str: The processed log content, filtered by the pattern
     """
-    if not pattern or not log_file_content:
+    # Handle FieldInfo objects that may be passed instead of actual values
+    pattern_value = pattern if isinstance(pattern, str) else None
+    if isinstance(pattern, fields.FieldInfo):
+        pattern_value = None
+
+    use_regex_value = use_regex if isinstance(use_regex, bool) else False
+    if isinstance(use_regex, fields.FieldInfo):
+        use_regex_value = False
+
+    if not pattern_value or not log_file_content:
         return log_file_content
 
-    if use_regex:
+    if use_regex_value:
         try:
-            regex = re.compile(pattern)
+            regex = re.compile(pattern_value)
             return '\n'.join(line for line in log_file_content.splitlines() if regex.search(line))
         except re.error as e:
             if ctx:
                 await ctx.error(f'Regex Error: {str(e)}')
             return log_file_content
     else:
-        return '\n'.join(line for line in log_file_content.splitlines() if pattern in line)
+        return '\n'.join(line for line in log_file_content.splitlines() if pattern_value in line)
 
 
 @mcp.tool(
@@ -137,19 +146,37 @@ async def read_db_log_file(
     """
     rds_client = RDSConnectionManager.get_connection()
 
+    # Handle FieldInfo objects that may be passed instead of actual values
+    number_of_lines_value = number_of_lines if isinstance(number_of_lines, int) else 100
+    if isinstance(number_of_lines, fields.FieldInfo):
+        number_of_lines_value = 100
+
+    marker_value = marker if isinstance(marker, str) else '0'
+    if isinstance(marker, fields.FieldInfo):
+        marker_value = '0'
+
     params = {
         'DBInstanceIdentifier': db_instance_identifier,
         'LogFileName': log_file_name,
-        'NumberOfLines': number_of_lines,  # No need to check for None
+        'NumberOfLines': number_of_lines_value,
     }
 
-    if marker:
-        params['Marker'] = marker
+    if marker_value and marker_value != '0':
+        params['Marker'] = marker_value
 
     response = rds_client.download_db_log_file_portion(**params)
 
+    # Handle FieldInfo objects for pattern and use_regex parameters
+    pattern_value = pattern if isinstance(pattern, str) else None
+    if isinstance(pattern, fields.FieldInfo):
+        pattern_value = None
+
+    use_regex_value = use_regex if isinstance(use_regex, bool) else False
+    if isinstance(use_regex, fields.FieldInfo):
+        use_regex_value = False
+
     log_content = await preprocess_log_content(
-        response.get('LogFileData', ''), pattern=pattern, use_regex=use_regex, ctx=ctx
+        response.get('LogFileData', ''), pattern=pattern_value, use_regex=use_regex_value, ctx=ctx
     )
 
     result = DBLogFileResponse(

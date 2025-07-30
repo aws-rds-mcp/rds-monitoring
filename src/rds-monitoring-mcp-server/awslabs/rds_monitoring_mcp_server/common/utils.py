@@ -96,7 +96,7 @@ def convert_string_to_datetime(default: datetime, date_string: Optional[str] = N
     from datetime import datetime
 
     def parse_date_string(default: datetime, date_str: Optional[str] = None) -> datetime:
-        if not date_str:
+        if not date_str or not isinstance(date_str, str):
             return default
 
         # Handle common formats

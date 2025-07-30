@@ -46,7 +46,6 @@ class Instance(BaseModel):
         Returns:
             Instance: Formatted instance information with comprehensive details
         """
-        # Use the shared utility function to format the instance data
         return cls(
             instance=instance,
             resource_uri=f'aws-rds://db-instance/{instance.get("DBInstanceIdentifier", "")}',

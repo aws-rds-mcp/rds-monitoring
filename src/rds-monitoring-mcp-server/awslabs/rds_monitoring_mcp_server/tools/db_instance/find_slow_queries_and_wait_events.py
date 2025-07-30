@@ -250,9 +250,11 @@ async def find_slow_queries_and_wait_events(
     Raises:
         ValueError: If Performance Insights is not enabled or parameters are invalid
     """
+    # Handle FieldInfo objects that may be passed instead of actual values during unit tests
     start_time_value = start_time if isinstance(start_time, str) else None
     end_time_value = end_time if isinstance(end_time, str) else None
     period_seconds_value = period_in_seconds if isinstance(period_in_seconds, int) else 300
+    limit_value = limit if isinstance(limit, int) else 10
 
     now = datetime.now()
     start = convert_string_to_datetime(
@@ -260,7 +262,7 @@ async def find_slow_queries_and_wait_events(
     )
     end = convert_string_to_datetime(default=now, date_string=end_time_value)
 
-    metric_queries = build_metric_queries(dimension, calculation, limit)
+    metric_queries = build_metric_queries(dimension, calculation, limit_value)
 
     pi_client = PIConnectionManager.get_connection()
 
@@ -276,7 +278,7 @@ async def find_slow_queries_and_wait_events(
     metric_results = process_metric_results(
         metric_list=response.get('MetricList', []),
         dimension=dimension,
-        limit=limit,
+        limit=limit_value,
     )
 
     result = SlowQueriesAndWaitEventsResponse(
