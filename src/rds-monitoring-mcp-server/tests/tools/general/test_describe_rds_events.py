@@ -1,15 +1,12 @@
 """Tests for the describe_rds_events module."""
 
-import json
 import pytest
 from awslabs.rds_monitoring_mcp_server.tools.general.describe_rds_events import (
-    DBEvent,
+    Event,
+    EventList,
     describe_rds_events,
-    format_event,
 )
 from datetime import datetime, timezone
-from mcp.server.fastmcp import Context as mcp_ctx
-from unittest.mock import MagicMock
 
 
 def create_test_event():
@@ -22,34 +19,40 @@ def create_test_event():
     }
 
 
-class TestHelperFunctions:
-    """Tests for helper functions in the describe_rds_events module."""
+class TestEvent:
+    """Tests for the Event model."""
 
-    def test_format_event(self):
-        """Test the format_event function."""
+    def test_from_event_data(self):
+        """Test the Event.from_event_data method."""
         event = create_test_event()
-        formatted_event = format_event(event)
+        formatted_event = Event.from_event_data(event)
 
-        assert isinstance(formatted_event, DBEvent)
+        assert isinstance(formatted_event, Event)
         assert formatted_event.message == 'Test event message'
         assert formatted_event.event_categories == ['backup', 'recovery']
         assert formatted_event.date == '2025-01-01T00:00:00+00:00'
         assert formatted_event.source_arn == 'arn:aws:rds:us-west-2:123456789012:db:test-instance'
 
+    def test_from_event_data_no_date(self):
+        """Test Event.from_event_data with no date."""
         event_no_date = create_test_event()
         event_no_date['Date'] = None
-        formatted_event = format_event(event_no_date)
+        formatted_event = Event.from_event_data(event_no_date)
 
         assert formatted_event.date == ''
 
+    def test_from_event_data_string_date(self):
+        """Test Event.from_event_data with string date."""
         event_string_date = create_test_event()
         event_string_date['Date'] = '2025-01-01'
-        formatted_event = format_event(event_string_date)
+        formatted_event = Event.from_event_data(event_string_date)
 
         assert formatted_event.date == '2025-01-01'
 
+    def test_from_event_data_minimal(self):
+        """Test Event.from_event_data with minimal data."""
         event_minimal = {}
-        formatted_event = format_event(event_minimal)
+        formatted_event = Event.from_event_data(event_minimal)
 
         assert formatted_event.message == ''
         assert formatted_event.event_categories == []
@@ -61,13 +64,11 @@ class TestDescribeRDSEvents:
     """Tests for the describe_rds_events function."""
 
     @pytest.mark.asyncio
-    async def test_describe_rds_events_basic(self, mock_rds_client):
+    async def test_describe_rds_events_basic(self, mock_rds_client, mock_context):
         """Test the describe_rds_events function with basic parameters."""
         mock_rds_client.describe_events.return_value = {'Events': [create_test_event()]}
 
-        context = MagicMock(spec=mcp_ctx)
         result = await describe_rds_events(
-            context,
             source_identifier='test-db-instance',
             source_type='db-instance',
         )
@@ -77,25 +78,23 @@ class TestDescribeRDSEvents:
         assert call_kwargs['SourceIdentifier'] == 'test-db-instance'
         assert call_kwargs['SourceType'] == 'db-instance'
 
-        result_dict = json.loads(result)
-        assert result_dict['source_identifier'] == 'test-db-instance'
-        assert result_dict['source_type'] == 'db-instance'
-        assert result_dict['count'] == 1
-        assert len(result_dict['events']) == 1
+        assert isinstance(result, EventList)
+        assert result.source_identifier == 'test-db-instance'
+        assert result.source_type == 'db-instance'
+        assert result.count == 1
+        assert len(result.events) == 1
 
-        event = result_dict['events'][0]
-        assert event['message'] == 'Test event message'
-        assert event['event_categories'] == ['backup', 'recovery']
-        assert event['source_arn'] == 'arn:aws:rds:us-west-2:123456789012:db:test-instance'
+        event = result.events[0]
+        assert event.message == 'Test event message'
+        assert event.event_categories == ['backup', 'recovery']
+        assert event.source_arn == 'arn:aws:rds:us-west-2:123456789012:db:test-instance'
 
     @pytest.mark.asyncio
-    async def test_describe_rds_events_with_filters(self, mock_rds_client):
+    async def test_describe_rds_events_with_filters(self, mock_rds_client, mock_context):
         """Test the describe_rds_events function with various filters."""
         mock_rds_client.describe_events.return_value = {'Events': [create_test_event()]}
 
-        context = MagicMock(spec=mcp_ctx)
-        await describe_rds_events(
-            context,
+        result = await describe_rds_events(
             source_identifier='test-db-instance',
             source_type='db-instance',
             event_categories=['backup'],
@@ -113,25 +112,24 @@ class TestDescribeRDSEvents:
         assert call_kwargs['Duration'] == 60
         assert call_kwargs['StartTime'] == '2025-01-01T00:00:00Z'
         assert call_kwargs['EndTime'] == '2025-01-02T00:00:00Z'
+        assert isinstance(result, EventList)
 
     @pytest.mark.asyncio
-    async def test_describe_rds_events_no_events(self, mock_rds_client):
+    async def test_describe_rds_events_no_events(self, mock_rds_client, mock_context):
         """Test the describe_rds_events function when no events are found."""
         mock_rds_client.describe_events.return_value = {'Events': []}
 
-        context = MagicMock(spec=mcp_ctx)
         result = await describe_rds_events(
-            context,
             source_identifier='test-db-instance',
             source_type='db-instance',
         )
 
-        result_dict = json.loads(result)
-        assert result_dict['count'] == 0
-        assert len(result_dict['events']) == 0
+        assert isinstance(result, EventList)
+        assert result.count == 0
+        assert len(result.events) == 0
 
     @pytest.mark.asyncio
-    async def test_describe_rds_events_different_source_types(self, mock_rds_client):
+    async def test_describe_rds_events_different_source_types(self, mock_rds_client, mock_context):
         """Test the describe_rds_events function with different source types."""
         mock_rds_client.describe_events.return_value = {'Events': [create_test_event()]}
 
@@ -145,14 +143,12 @@ class TestDescribeRDSEvents:
         ]
 
         for source_type in source_types:
-            context = MagicMock(spec=mcp_ctx)
             result = await describe_rds_events(
-                context,
                 source_identifier=f'test-{source_type}',
                 source_type=source_type,
             )
 
             assert mock_rds_client.describe_events.call_args[1]['SourceType'] == source_type
-
-            result_dict = json.loads(result)
-            assert result_dict['source_type'] == source_type
+            assert isinstance(result, EventList)
+            assert result.source_type == source_type
+            mock_rds_client.reset_mock()

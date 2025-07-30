@@ -6,6 +6,7 @@ from awslabs.rds_monitoring_mcp_server.common.connection import (
     PIConnectionManager,
     RDSConnectionManager,
 )
+from awslabs.rds_monitoring_mcp_server.common.context import RDSContext
 from unittest.mock import MagicMock, patch
 
 
@@ -82,3 +83,14 @@ def mock_handle_paginated_call():
         'awslabs.rds_monitoring_mcp_server.common.utils.handle_paginated_aws_api_call'
     ) as mock:
         yield mock
+
+
+@pytest.fixture
+def mock_context():
+    """Fixture for mocking RDSContext."""
+    with (
+        patch.object(RDSContext, 'max_items', return_value=100),
+        patch.object(RDSContext, 'readonly_mode', return_value=True),
+        patch.object(RDSContext, 'register_resource_as_tool', return_value=False),
+    ):
+        yield RDSContext

@@ -12,72 +12,70 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for the Context class."""
+"""Tests for the RDSContext class."""
 
 import pytest
-from awslabs.rds_monitoring_mcp_server.context import Context
+from awslabs.rds_monitoring_mcp_server.common.context import RDSContext
 
 
 @pytest.fixture(autouse=True)
-def reset_context():
-    """Reset the Context class to default values after each test."""
+def reset_RDSContext():
+    """Reset the RDSContext class to default values after each test."""
     yield
-    Context.initialize(readonly=True, max_items=100)
+    RDSContext.initialize(readonly=True, max_items=100)
 
 
 def test_default_values():
     """Test that the default values are set correctly."""
-    assert Context._readonly is True
-    assert Context._max_items == 100
+    assert RDSContext._readonly is True
+    assert RDSContext._max_items == 100
 
 
 def test_initialize():
     """Test that the initialize method correctly updates class variables."""
-    Context.initialize(readonly=False, max_items=200)
-    assert Context._readonly is False
-    assert Context._max_items == 200
+    RDSContext.initialize(readonly=False, max_items=200)
+    assert RDSContext._readonly is False
+    assert RDSContext._max_items == 200
 
     # Test with just readonly parameter
-    Context.initialize(readonly=True, max_items=100)
-    assert Context._readonly is True
-    assert Context._max_items == 100
+    RDSContext.initialize(readonly=True, max_items=100)
+    assert RDSContext._readonly is True
+    assert RDSContext._max_items == 100
 
     # Test with just max_items parameter
-    Context.initialize(readonly=True, max_items=300)
-    assert Context._readonly is True
-    assert Context._max_items == 300
+    RDSContext.initialize(readonly=True, max_items=300)
+    assert RDSContext._readonly is True
+    assert RDSContext._max_items == 300
 
 
 def test_readonly_mode():
     """Test that the readonly_mode method returns the correct value."""
-    Context._readonly = True
-    assert Context.readonly_mode() is True
+    RDSContext._readonly = True
+    assert RDSContext.readonly_mode() is True
 
-    Context._readonly = False
-    assert Context.readonly_mode() is False
+    RDSContext._readonly = False
+    assert RDSContext.readonly_mode() is False
 
 
 def test_max_items():
     """Test that the max_items method returns the correct value."""
-    Context._max_items = 100
-    assert Context.max_items() == 100
+    RDSContext._max_items = 100
+    assert RDSContext.max_items() == 100
 
-    Context._max_items = 200
-    assert Context.max_items() == 200
+    RDSContext._max_items = 200
+    assert RDSContext.max_items() == 200
 
 
 def test_get_pagination_config():
     """Test that the get_pagination_config method returns the expected dictionary."""
-    Context._max_items = 100
+    RDSContext._max_items = 100
     expected = {
         'MaxItems': 100,
-        'PageSize': 20,
     }
-    assert Context.get_pagination_config() == expected
+    assert RDSContext.get_pagination_config() == expected
 
-    Context._max_items = 200
+    RDSContext._max_items = 200
     expected = {
         'MaxItems': 200,
-        'PageSize': 20,
     }
-    assert Context.get_pagination_config() == expected
+    assert RDSContext.get_pagination_config() == expected
