@@ -17,6 +17,7 @@
 import re
 from ...common.connection import RDSConnectionManager
 from ...common.decorators.handle_exceptions import handle_exceptions
+from ...common.decorators.rate_limit import rate_limiter
 from ...common.server import mcp
 from mcp.server.fastmcp import Context as FastMCPContext
 from pydantic import BaseModel, Field, fields
@@ -101,6 +102,7 @@ async def preprocess_log_content(
     description=TOOL_DESCRIPTION,
 )
 @handle_exceptions
+@rate_limiter
 async def read_db_log_file(
     db_instance_identifier: str = Field(
         ...,
