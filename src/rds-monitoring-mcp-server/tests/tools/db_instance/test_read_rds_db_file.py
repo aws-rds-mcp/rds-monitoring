@@ -19,6 +19,8 @@ from awslabs.rds_monitoring_mcp_server.tools.db_instance.read_rds_db_file import
     preprocess_log_content,
     read_db_log_file,
 )
+from collections import defaultdict, deque
+from unittest.mock import patch
 
 
 class TestPreprocessLogContent:
@@ -60,6 +62,10 @@ class TestReadDbLogFile:
     """Tests for the read_db_log_file tool."""
 
     @pytest.mark.asyncio
+    @patch(
+        'awslabs.rds_monitoring_mcp_server.common.decorators.rate_limit._call_times',
+        defaultdict(deque),
+    )
     async def test_read_db_log_file_basic(self, mock_rds_client, mock_context):
         """Test basic execution of the read_db_log_file tool."""
         test_db_instance_id = 'test-db-instance'
@@ -87,6 +93,10 @@ class TestReadDbLogFile:
         assert result.additional_data_pending is False
 
     @pytest.mark.asyncio
+    @patch(
+        'awslabs.rds_monitoring_mcp_server.common.decorators.rate_limit._call_times',
+        defaultdict(deque),
+    )
     async def test_read_db_log_file_with_pattern(self, mock_rds_client, mock_context):
         """Test read_db_log_file with a pattern filter."""
         test_db_instance_id = 'test-db-instance'
@@ -110,6 +120,10 @@ class TestReadDbLogFile:
         assert 'LOG: database system is ready' not in result.log_content
 
     @pytest.mark.asyncio
+    @patch(
+        'awslabs.rds_monitoring_mcp_server.common.decorators.rate_limit._call_times',
+        defaultdict(deque),
+    )
     async def test_read_db_log_file_with_pagination(self, mock_rds_client, mock_context):
         """Test read_db_log_file with pagination markers."""
         test_db_instance_id = 'test-db-instance'
@@ -138,6 +152,10 @@ class TestReadDbLogFile:
         assert result.additional_data_pending is True
 
     @pytest.mark.asyncio
+    @patch(
+        'awslabs.rds_monitoring_mcp_server.common.decorators.rate_limit._call_times',
+        defaultdict(deque),
+    )
     async def test_read_db_log_file_custom_line_count(self, mock_rds_client, mock_context):
         """Test read_db_log_file with custom number of lines."""
         test_db_instance_id = 'test-db-instance'
@@ -161,6 +179,10 @@ class TestReadDbLogFile:
         assert call_kwargs['NumberOfLines'] == custom_line_count
 
     @pytest.mark.asyncio
+    @patch(
+        'awslabs.rds_monitoring_mcp_server.common.decorators.rate_limit._call_times',
+        defaultdict(deque),
+    )
     async def test_read_db_log_file_empty_response(self, mock_rds_client, mock_context):
         """Test read_db_log_file when the API returns an empty response."""
         test_db_instance_id = 'test-db-instance'
