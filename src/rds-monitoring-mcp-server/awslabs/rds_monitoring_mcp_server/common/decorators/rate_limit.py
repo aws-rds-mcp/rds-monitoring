@@ -23,7 +23,7 @@ from typing import Any, Callable
 CALLS_PER_PERIOD_LIMIT = 3
 PERIOD = 50
 
-_call_times = defaultdict(deque)
+_call_times = defaultdict(lambda: deque(maxlen=CALLS_PER_PERIOD_LIMIT))
 
 
 def rate_limiter(func: Callable) -> Callable:
